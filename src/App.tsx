@@ -78,8 +78,9 @@ export const App: React.FC = () => {
 
         try {
           const profile = await authService.getProfile(session.user.id);
-          if (profile?.nickname && profile.nickname_confirmed) {
-            setUserNick(profile.nickname);
+          const candidateNick = profile?.nickname || session.user.user_metadata?.nickname;
+          if (candidateNick) {
+            setUserNick(candidateNick);
             setScreen('dash');
           } else {
             setUserNick('');
@@ -87,8 +88,14 @@ export const App: React.FC = () => {
           }
         } catch (e) {
           console.warn('Profile fetch error:', e);
-          setUserNick('');
-          setScreen('nickname');
+          const metaNick = session.user.user_metadata?.nickname;
+          if (metaNick) {
+            setUserNick(metaNick);
+            setScreen('dash');
+          } else {
+            setUserNick('');
+            setScreen('nickname');
+          }
         }
 
         // Fetch DB tournaments
@@ -128,12 +135,14 @@ export const App: React.FC = () => {
     setEmail(userEmail);
 
     try {
-      const uid = newUserId || (await authService.getCurrentSession())?.user?.id;
+      const session = await authService.getCurrentSession();
+      const uid = newUserId || session?.user?.id;
       if (uid) {
         setUserId(uid);
         const profile = await authService.getProfile(uid);
-        if (profile?.nickname && profile.nickname_confirmed) {
-          setUserNick(profile.nickname);
+        const candidateNick = profile?.nickname || session?.user?.user_metadata?.nickname;
+        if (candidateNick) {
+          setUserNick(candidateNick);
           setScreen('dash');
         } else {
           setScreen('nickname');
@@ -166,24 +175,27 @@ export const App: React.FC = () => {
   };
 
   const handleConfirmNick = async (nick: string) => {
-    setUserNick(nick);
+    const cleanNick = nick.trim();
+    setUserNick(cleanNick);
 
-    if (userId) {
+    const uid = userId || (await authService.getCurrentSession())?.user?.id;
+    if (uid) {
+      setUserId(uid);
       try {
-        await authService.updateNickname(userId, nick);
+        await authService.updateNickname(uid, cleanNick);
       } catch (err) {
         console.warn('Could not update nickname in DB:', err);
       }
     }
 
-    const updatedTours = claimOwner(nick, data.tours);
+    const updatedTours = claimOwner(cleanNick, data.tours);
     setData((prev) => ({
       ...prev,
-      ownerNick: nick,
+      ownerNick: cleanNick,
       tours: updatedTours
     }));
     setScreen('dash');
-    showToast(`${L.hello} ${nick}`);
+    showToast(`${L.hello} ${cleanNick}`);
     refreshTournaments();
   };
 

@@ -39,33 +39,83 @@ export const authService = {
   },
 
   async getProfile(userId: string): Promise<UserProfile | null> {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, nickname, locale, nickname_confirmed, created_at')
-      .eq('id', userId)
-      .single();
+    // 1. Intento desde la tabla profiles
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, nickname, locale, nickname_confirmed, created_at')
+        .eq('id', userId)
+        .maybeSingle();
 
-    if (error) {
-      console.warn('Could not fetch profile:', error.message);
-      return null;
+      if (!error && data?.nickname) {
+        return data as UserProfile;
+      }
+    } catch (e) {
+      console.warn('Profiles table check error:', e);
     }
-    return data as UserProfile;
+
+    // 2. Fallback confiable: user_metadata de Supabase Auth
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      const meta = userData?.user?.user_metadata;
+      if (meta?.nickname) {
+        return {
+          id: userId,
+          nickname: meta.nickname,
+          locale: (meta.locale as 'es' | 'en') || 'es',
+          nickname_confirmed: meta.nickname_confirmed !== false,
+          created_at: userData?.user?.created_at || new Date().toISOString()
+        };
+      }
+    } catch (e) {
+      console.warn('User metadata check error:', e);
+    }
+
+    return null;
   },
 
   async updateNickname(userId: string, nickname: string) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({
-        nickname: nickname.trim(),
-        nickname_confirmed: true,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', userId)
-      .select()
-      .single();
+    const cleanNick = nickname.trim();
 
-    if (error) throw error;
-    return data as UserProfile;
+    // 1. Guardar en user_metadata de Supabase Auth (nunca falla por RLS o falta de tabla)
+    try {
+      await supabase.auth.updateUser({
+        data: {
+          nickname: cleanNick,
+          nickname_confirmed: true
+        }
+      });
+    } catch (e) {
+      console.warn('Could not update user_metadata in Supabase auth:', e);
+    }
+
+    // 2. Upsert en tabla profiles (crea la fila si no existe, la actualiza si existe)
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: userId,
+          nickname: cleanNick,
+          nickname_confirmed: true,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' })
+        .select()
+        .maybeSingle();
+
+      if (!error && data) {
+        return data as UserProfile;
+      }
+    } catch (e) {
+      console.warn('Could not upsert profile row in DB:', e);
+    }
+
+    return {
+      id: userId,
+      nickname: cleanNick,
+      locale: 'es',
+      nickname_confirmed: true,
+      created_at: new Date().toISOString()
+    } as UserProfile;
   },
 
   async updateLocale(userId: string, locale: 'es' | 'en') {
