@@ -48,7 +48,7 @@ export const App: React.FC = () => {
     if (!userId) return;
     try {
       const dbTours = await tournamentService.fetchUserTournaments();
-      if (dbTours && dbTours.length > 0) {
+      if (Array.isArray(dbTours)) {
         setData((prev) => ({
           ...prev,
           tours: dbTours
@@ -101,7 +101,7 @@ export const App: React.FC = () => {
         // Fetch DB tournaments
         try {
           const dbTours = await tournamentService.fetchUserTournaments();
-          if (dbTours && dbTours.length > 0) {
+          if (Array.isArray(dbTours)) {
             setData((prev) => ({ ...prev, tours: dbTours }));
           }
         } catch (e) {
