@@ -41,6 +41,8 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
     }
   };
 
+  const isTestUser = email?.trim().toLowerCase() === 'test@broscup.com';
+
   const rows = [
     {
       label: L.rowNick,
@@ -67,12 +69,16 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
       color: 'var(--color-accent-700)',
       action: onLogout
     },
-    {
-      label: L.rowReset,
-      value: L.rowResetV,
-      color: 'var(--color-neutral-600)',
-      action: onResetDemo
-    }
+    ...(isTestUser
+      ? [
+          {
+            label: L.rowReset,
+            value: L.rowResetV,
+            color: 'var(--color-cta)',
+            action: onResetDemo
+          }
+        ]
+      : [])
   ];
 
   return (

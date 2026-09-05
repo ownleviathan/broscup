@@ -33,6 +33,7 @@ interface TournamentDetailViewProps {
   onShowToast: (msg: string) => void;
   L: StringsDict;
   isTablet: boolean;
+  isTestUser?: boolean;
 }
 
 export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
@@ -42,7 +43,8 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
   onBack,
   onShowToast,
   L,
-  isTablet
+  isTablet,
+  isTestUser = false
 }) => {
   const [activeTab, setActiveTab] = useState<TournamentTab>('tabla');
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
@@ -597,14 +599,16 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
                     <span>Agregar jugador</span>
                   </button>
                 )}
-                <button
-                  className="btn btn-secondary"
-                  style={{ alignSelf: 'flex-start', gap: '8px', minHeight: '38px', paddingInline: '14px' }}
-                  onClick={handleSimulate}
-                >
-                  <Users size={16} />
-                  <span>{L.simulate}</span>
-                </button>
+                {isTestUser && (
+                  <button
+                    className="btn btn-secondary"
+                    style={{ alignSelf: 'flex-start', gap: '8px', minHeight: '38px', paddingInline: '14px' }}
+                    onClick={handleSimulate}
+                  >
+                    <Users size={16} />
+                    <span>{L.simulate}</span>
+                  </button>
+                )}
               </div>
             </div>
           )}

@@ -463,6 +463,7 @@ export const App: React.FC = () => {
             onShowToast={showToast}
             L={L}
             isTablet={isTablet}
+            isTestUser={email?.trim().toLowerCase() === 'test@broscup.com'}
           />
         )}
 

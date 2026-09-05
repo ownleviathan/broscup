@@ -313,6 +313,27 @@ export const LoginView: React.FC<LoginViewProps> = ({
             <span>{loading ? (lang === 'en' ? 'Signing in...' : 'Entrando...') : L.enter}</span>
             <ArrowRight size={18} />
           </button>
+
+          <div style={{ marginTop: '12px', textAlign: 'center' }}>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{
+                fontSize: '11px',
+                padding: '6px 12px',
+                border: '1px dashed var(--color-divider)',
+                borderRadius: '6px',
+                color: 'var(--color-neutral-700)',
+                background: 'var(--color-surface)'
+              }}
+              onClick={() => {
+                setEmail('test@broscup.com');
+                setPass('1q2w3e4r');
+              }}
+            >
+              ⚡ {lang === 'en' ? 'Test Account (test@broscup.com)' : 'Cuenta de pruebas (test@broscup.com)'}
+            </button>
+          </div>
         </form>
 
         <div style={{ flex: 1, minHeight: '24px' }} />

@@ -19,10 +19,43 @@ export const authService = {
   },
 
   async signIn(email: string, pass: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password: pass
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = pass.trim();
+
+    let { data, error } = await supabase.auth.signInWithPassword({
+      email: cleanEmail,
+      password: cleanPass
     });
+
+    // Auto-aprovisionamiento inteligente para la cuenta de pruebas de producción
+    if (error && cleanEmail === 'test@broscup.com' && cleanPass === '1q2w3e4r') {
+      try {
+        const signupRes = await supabase.auth.signUp({
+          email: 'test@broscup.com',
+          password: '1q2w3e4r',
+          options: {
+            data: {
+              nickname: 'TestBro',
+              nickname_confirmed: true
+            }
+          }
+        });
+        if (signupRes.data?.session) {
+          return signupRes.data;
+        }
+
+        const retry = await supabase.auth.signInWithPassword({
+          email: 'test@broscup.com',
+          password: '1q2w3e4r'
+        });
+        if (retry.data?.session) {
+          return retry.data;
+        }
+      } catch (provisionErr) {
+        console.warn('Auto-provision test account error:', provisionErr);
+      }
+    }
+
     if (error) throw error;
     return data;
   },
