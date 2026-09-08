@@ -101,6 +101,27 @@ export interface AdminTournamentSummary {
   total_matches: number;
   played_matches: number;
   champion_name?: string;
+  creator_name?: string;
+}
+
+export interface AdminPlayerTournament {
+  tournament_id: string;
+  tournament_name: string;
+  role: MemberRole;
+  paid: boolean;
+  closed: boolean;
+  type: TournamentType;
+  team_name?: string;
+  joined_at: string;
+}
+
+export interface AdminPlayerSummary {
+  id: string;
+  nickname: string;
+  email: string;
+  is_blocked: boolean;
+  created_at: string;
+  tournaments: AdminPlayerTournament[];
 }
 
 export type TournamentTab = 'tabla' | 'partidos' | 'bracket' | 'gente';

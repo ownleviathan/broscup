@@ -6,6 +6,7 @@ export interface UserProfile {
   locale: 'es' | 'en';
   nickname_confirmed: boolean;
   created_at: string;
+  is_blocked?: boolean;
 }
 
 export const authService = {

@@ -29,6 +29,13 @@ export const App: React.FC = () => {
   const [screen, setScreen] = useState<ScreenType>(data.ownerNick ? 'dash' : 'auth');
   const [openTourId, setOpenTourId] = useState<string | null>(null);
   const [guestTour, setGuestTour] = useState<Tournament | null>(null);
+  const [pendingJoinCode, setPendingJoinCode] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('join');
+    }
+    return null;
+  });
   const [toast, setToast] = useState<string | null>(null);
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== 'undefined' ? window.innerWidth : 1200
@@ -98,6 +105,10 @@ export const App: React.FC = () => {
     async function syncSession(session: any) {
       const urlParams = new URLSearchParams(window.location.search);
       const hasSharedLink = Boolean(urlParams.get('t'));
+      const joinParam = urlParams.get('join');
+      if (joinParam) {
+        setPendingJoinCode(joinParam);
+      }
 
       if (session && session.user) {
         setUserId(session.user.id);
@@ -105,10 +116,24 @@ export const App: React.FC = () => {
 
         try {
           const profile = await authService.getProfile(session.user.id);
+          if (profile?.is_blocked) {
+            showToast('Tu cuenta ha sido bloqueada por el administrador.');
+            await authService.signOut();
+            setUserId(null);
+            setUserNick('');
+            setScreen('auth');
+            return;
+          }
           const candidateNick = profile?.nickname || session.user.user_metadata?.nickname;
           if (candidateNick) {
             setUserNick(candidateNick);
-            if (!hasSharedLink) setScreen('dash');
+            if (!hasSharedLink) {
+              if (joinParam || pendingJoinCode) {
+                setScreen('join');
+              } else {
+                setScreen('dash');
+              }
+            }
           } else {
             setUserNick('');
             if (!hasSharedLink) setScreen('nickname');
@@ -118,7 +143,13 @@ export const App: React.FC = () => {
           const metaNick = session.user.user_metadata?.nickname;
           if (metaNick) {
             setUserNick(metaNick);
-            if (!hasSharedLink) setScreen('dash');
+            if (!hasSharedLink) {
+              if (joinParam || pendingJoinCode) {
+                setScreen('join');
+              } else {
+                setScreen('dash');
+              }
+            }
           } else {
             setUserNick('');
             if (!hasSharedLink) setScreen('nickname');
@@ -492,10 +523,19 @@ export const App: React.FC = () => {
           <JoinTournamentView
             tournaments={data.tours}
             userNick={userNick}
-            onJoin={handleJoinTournament}
-            onCancel={() => setScreen('dash')}
+            onJoin={(tourId, team) => {
+              setPendingJoinCode(null);
+              window.history.replaceState({}, '', window.location.pathname);
+              handleJoinTournament(tourId, team);
+            }}
+            onCancel={() => {
+              setPendingJoinCode(null);
+              window.history.replaceState({}, '', window.location.pathname);
+              setScreen('dash');
+            }}
             L={L}
             isTablet={isTablet}
+            initialCode={pendingJoinCode || undefined}
           />
         )}
 
@@ -542,6 +582,7 @@ export const App: React.FC = () => {
             onBack={() => setScreen('dash')}
             isTablet={isTablet}
             L={L}
+            onShowToast={showToast}
           />
         )}
 

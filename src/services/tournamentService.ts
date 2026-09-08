@@ -6,7 +6,8 @@ import {
   TournamentGroup,
   Member,
   FormState,
-  AdminTournamentSummary
+  AdminTournamentSummary,
+  AdminPlayerSummary
 } from '../types/tournament';
 
 // Helper to construct a unified Tournament model from DB rows
@@ -275,6 +276,33 @@ export const tournamentService = {
 
     if (error) throw error;
     return (data as AdminTournamentSummary[]) || [];
+  },
+
+  // Fetch all players for superadmin test@broscup.com
+  async fetchAllPlayersAdmin(): Promise<AdminPlayerSummary[]> {
+    const { data, error } = await supabase.rpc('get_all_players_admin');
+    if (error) throw error;
+    return (data as AdminPlayerSummary[]) || [];
+  },
+
+  // Admin remove a player from a tournament
+  async adminRemovePlayerFromTournament(tournamentId: string, profileId: string) {
+    const { data, error } = await supabase.rpc('admin_remove_player_from_tournament', {
+      p_tournament_id: tournamentId,
+      p_profile_id: profileId
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  // Admin block/unblock a player
+  async adminToggleBlockPlayer(profileId: string, blocked: boolean) {
+    const { data, error } = await supabase.rpc('admin_toggle_block_player', {
+      p_profile_id: profileId,
+      p_blocked: blocked
+    });
+    if (error) throw error;
+    return data;
   },
 
   // 2. Search open tournament by ID or name

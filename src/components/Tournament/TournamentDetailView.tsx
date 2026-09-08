@@ -23,7 +23,8 @@ import { PeopleTab } from './PeopleTab';
 import { ScoreModal } from './ScoreModal';
 import { AdminSheet, SheetMode } from './AdminSheet';
 import { AddPlayerModal } from './AddPlayerModal';
-import { ArrowLeft, Settings, Users, UserPlus, Trophy, BarChart3, Layers, Share2, Copy, Link as LinkIcon, Eye } from 'lucide-react';
+import { InvitePlayersModal } from './InvitePlayersModal';
+import { ArrowLeft, Settings, Users, UserPlus, Trophy, BarChart3, Layers, Share2, Copy, Eye } from 'lucide-react';
 
 interface TournamentDetailViewProps {
   tournament: Tournament;
@@ -55,6 +56,7 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
   const [sheetMode, setSheetMode] = useState<SheetMode | null>(null);
   const [targetMember, setTargetMember] = useState<Member | null>(null);
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   const myMember = isGuestMode ? undefined : tournament.members.find((p) => p.nick === userNick);
   const myRole = myMember?.role || 'jugador';
@@ -678,8 +680,27 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
                 <span>Copiar Código</span>
               </button>
 
+              {tournament.mode !== 'offline' && canManage && (
+                <button
+                  className="btn btn-primary"
+                  style={{
+                    gap: '8px',
+                    paddingInline: '16px',
+                    minHeight: '40px',
+                    flex: isTablet ? 'initial' : 1,
+                    justifyContent: 'center',
+                    fontSize: '12px',
+                    fontWeight: 800
+                  }}
+                  onClick={() => setShowInviteModal(true)}
+                >
+                  <Share2 size={16} />
+                  <span>Invitar Amigos</span>
+                </button>
+              )}
+
               <button
-                className="btn btn-primary"
+                className="btn btn-secondary"
                 style={{
                   gap: '8px',
                   paddingInline: '16px',
@@ -695,8 +716,8 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
                   onShowToast('Enlace de invitado copiado al portapapeles');
                 }}
               >
-                <LinkIcon size={16} />
-                <span>Copiar Enlace de Invitado</span>
+                <Eye size={16} />
+                <span>Enlace de Espectador</span>
               </button>
             </div>
           </div>
@@ -744,6 +765,16 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
                   >
                     <UserPlus size={16} />
                     <span>Agregar jugador</span>
+                  </button>
+                )}
+                {tournament.mode !== 'offline' && canManage && (
+                  <button
+                    className="btn btn-primary"
+                    style={{ alignSelf: 'flex-start', gap: '8px', minHeight: '38px', paddingInline: '16px' }}
+                    onClick={() => setShowInviteModal(true)}
+                  >
+                    <Share2 size={16} />
+                    <span>Invitar Amigos</span>
                   </button>
                 )}
                 {isTestUser && (
@@ -860,6 +891,15 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
           onAdd={handleAddOfflineMember}
           onClose={() => setShowAddPlayerModal(false)}
           L={L}
+        />
+      )}
+
+      {/* Invite Players Modal */}
+      {showInviteModal && (
+        <InvitePlayersModal
+          tournament={tournament}
+          onClose={() => setShowInviteModal(false)}
+          onShowToast={onShowToast}
         />
       )}
     </div>

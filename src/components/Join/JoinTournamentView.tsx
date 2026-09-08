@@ -11,6 +11,7 @@ interface JoinTournamentViewProps {
   onCancel: () => void;
   L: StringsDict;
   isTablet: boolean;
+  initialCode?: string;
 }
 
 interface FoundTournament {
@@ -30,14 +31,21 @@ export const JoinTournamentView: React.FC<JoinTournamentViewProps> = ({
   onJoin,
   onCancel,
   L,
-  isTablet
+  isTablet,
+  initialCode
 }) => {
-  const [joinCode, setJoinCode] = useState('');
+  const [joinCode, setJoinCode] = useState(initialCode || '');
   const [joinName, setJoinName] = useState('');
   const [teamName, setTeamName] = useState('');
   const [fullModal, setFullModal] = useState(false);
   const [remoteFound, setRemoteFound] = useState<FoundTournament | null>(null);
   const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    if (initialCode) {
+      setJoinCode(initialCode);
+    }
+  }, [initialCode]);
 
   const query = (joinCode || joinName).trim();
 
