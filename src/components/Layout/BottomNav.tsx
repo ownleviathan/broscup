@@ -1,19 +1,26 @@
 import React from 'react';
 import { ScreenType, StringsDict } from '../../types/tournament';
-import { Trophy, History, User } from 'lucide-react';
+import { Trophy, History, User, ShieldCheck } from 'lucide-react';
 
 interface BottomNavProps {
   currentScreen: ScreenType;
   onNavigate: (screen: ScreenType) => void;
+  email?: string;
   L: StringsDict;
 }
 
-export const BottomNav: React.FC<BottomNavProps> = ({ currentScreen, onNavigate, L }) => {
+export const BottomNav: React.FC<BottomNavProps> = ({ currentScreen, onNavigate, email, L }) => {
+  const isSuperAdmin = email?.trim().toLowerCase() === 'test@broscup.com';
+
   const items = [
     { key: 'dash' as ScreenType, label: L.navT, icon: Trophy },
     { key: 'history' as ScreenType, label: L.navH, icon: History },
     { key: 'profile' as ScreenType, label: L.navP, icon: User }
   ];
+
+  if (isSuperAdmin) {
+    items.push({ key: 'admin-all' as ScreenType, label: 'Admin', icon: ShieldCheck });
+  }
 
   return (
     <div
@@ -23,7 +30,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentScreen, onNavigate,
         borderTop: '2px solid var(--color-divider)',
         background: 'var(--color-surface)',
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
+        gridTemplateColumns: `repeat(${items.length}, 1fr)`,
         zIndex: 50
       }}
     >

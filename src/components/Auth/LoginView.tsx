@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StringsDict, Language } from '../../types/tournament';
 import { ArrowRight } from 'lucide-react';
+import { APP_VERSION } from '../../config/version';
 
 import { authService } from '../../services/authService';
 
@@ -349,6 +350,10 @@ export const LoginView: React.FC<LoginViewProps> = ({
           >
             {L.signUp}
           </a>
+        </div>
+
+        <div style={{ marginTop: '16px', fontSize: '11px', color: 'var(--color-neutral-500)', fontFamily: 'monospace' }}>
+          Versión {APP_VERSION}
         </div>
       </div>
     </div>

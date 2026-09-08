@@ -18,6 +18,7 @@ import { JoinTournamentView } from './components/Join/JoinTournamentView';
 import { TournamentDetailView } from './components/Tournament/TournamentDetailView';
 import { HistoryView } from './components/History/HistoryView';
 import { ProfileView } from './components/Profile/ProfileView';
+import { AdminAllTournamentsView } from './components/Admin/AdminAllTournamentsView';
 
 export const App: React.FC = () => {
   const [data, setData] = useState(() => loadStoredData());
@@ -27,6 +28,7 @@ export const App: React.FC = () => {
   const [lang, setLang] = useState<Language>(data.lang);
   const [screen, setScreen] = useState<ScreenType>(data.ownerNick ? 'dash' : 'auth');
   const [openTourId, setOpenTourId] = useState<string | null>(null);
+  const [guestTour, setGuestTour] = useState<Tournament | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== 'undefined' ? window.innerWidth : 1200
@@ -69,9 +71,34 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Check for shared tournament link ?t=... on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sharedCode = params.get('t');
+    if (sharedCode) {
+      tournamentService
+        .fetchPublicTournament(sharedCode)
+        .then((tour) => {
+          if (tour) {
+            setGuestTour(tour);
+            setOpenTourId(tour.id);
+            setScreen('tour');
+          } else {
+            showToast('Torneo no encontrado');
+          }
+        })
+        .catch((err) => {
+          console.warn('Error fetching shared tournament:', err);
+        });
+    }
+  }, [showToast]);
+
   // Initialize Auth on mount and listen for real-time auth changes (like email verification)
   useEffect(() => {
     async function syncSession(session: any) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasSharedLink = Boolean(urlParams.get('t'));
+
       if (session && session.user) {
         setUserId(session.user.id);
         setEmail(session.user.email || '');
@@ -81,20 +108,20 @@ export const App: React.FC = () => {
           const candidateNick = profile?.nickname || session.user.user_metadata?.nickname;
           if (candidateNick) {
             setUserNick(candidateNick);
-            setScreen('dash');
+            if (!hasSharedLink) setScreen('dash');
           } else {
             setUserNick('');
-            setScreen('nickname');
+            if (!hasSharedLink) setScreen('nickname');
           }
         } catch (e) {
           console.warn('Profile fetch error:', e);
           const metaNick = session.user.user_metadata?.nickname;
           if (metaNick) {
             setUserNick(metaNick);
-            setScreen('dash');
+            if (!hasSharedLink) setScreen('dash');
           } else {
             setUserNick('');
-            setScreen('nickname');
+            if (!hasSharedLink) setScreen('nickname');
           }
         }
 
@@ -110,7 +137,9 @@ export const App: React.FC = () => {
       } else {
         setUserId(null);
         setUserNick('');
-        setScreen('auth');
+        if (!hasSharedLink) {
+          setScreen('auth');
+        }
       }
     }
 
@@ -205,6 +234,9 @@ export const App: React.FC = () => {
       ...prev,
       tours: prev.tours.map((t) => (t.id === updated.id ? updated : t))
     }));
+    if (guestTour?.id === updated.id) {
+      setGuestTour(updated);
+    }
   };
 
   const handleCreatedTournament = async (newTour: Tournament, formState?: FormState) => {
@@ -351,7 +383,19 @@ export const App: React.FC = () => {
     showToast(L.tDemoReset);
   };
 
-  const currentTour = data.tours.find((t) => t.id === openTourId) || null;
+  const currentTour =
+    data.tours.find((t) => t.id === openTourId) ||
+    (guestTour?.id === openTourId ? guestTour : null);
+
+  const isMemberOfCurrentTour = currentTour
+    ? currentTour.members.some(
+        (m) =>
+          (userId && m.profileId === userId) ||
+          (userNick && m.nick.toLowerCase() === userNick.toLowerCase())
+      )
+    : false;
+
+  const isGuestMode = !isMemberOfCurrentTour;
   const isAuthScreen = screen === 'auth' || screen === 'signup' || screen === 'nickname';
 
   return (
@@ -372,7 +416,7 @@ export const App: React.FC = () => {
       }}
     >
       {/* Top Nav for Desktop and iPad */}
-      {isTablet && !isAuthScreen && (
+      {isTablet && !isAuthScreen && userId && (
         <TopNav
           currentScreen={screen}
           onNavigate={(s) => {
@@ -382,6 +426,7 @@ export const App: React.FC = () => {
           onOpenCreate={() => setScreen('create')}
           onOpenJoin={() => setScreen('join')}
           nick={userNick}
+          email={email}
           L={L}
         />
       )}
@@ -459,11 +504,44 @@ export const App: React.FC = () => {
             tournament={currentTour}
             userNick={userNick}
             onUpdateTournament={handleUpdateTournament}
-            onBack={() => setScreen('dash')}
+            onBack={() => {
+              if (!userId) {
+                setScreen('auth');
+              } else {
+                setScreen('dash');
+              }
+              setOpenTourId(null);
+            }}
             onShowToast={showToast}
             L={L}
             isTablet={isTablet}
             isTestUser={email?.trim().toLowerCase() === 'test@broscup.com'}
+            isGuestMode={isGuestMode}
+            onGoAuth={() => setScreen('auth')}
+          />
+        )}
+
+        {screen === 'admin-all' && (
+          <AdminAllTournamentsView
+            onSelectTournament={async (tourId) => {
+              let target = data.tours.find((t) => t.id === tourId);
+              if (!target) {
+                const fetched = await tournamentService.fetchPublicTournament(tourId);
+                if (fetched) {
+                  setData((prev) => ({ ...prev, tours: [fetched, ...prev.tours] }));
+                  target = fetched;
+                }
+              }
+              if (target) {
+                setOpenTourId(target.id);
+                setScreen('tour');
+              } else {
+                showToast('No se pudo abrir el torneo');
+              }
+            }}
+            onBack={() => setScreen('dash')}
+            isTablet={isTablet}
+            L={L}
           />
         )}
 
@@ -494,13 +572,14 @@ export const App: React.FC = () => {
       </main>
 
       {/* Mobile Bottom Navigation */}
-      {!isTablet && !isAuthScreen && (
+      {!isTablet && !isAuthScreen && userId && (
         <BottomNav
           currentScreen={screen}
           onNavigate={(s) => {
             setScreen(s);
             if (s !== 'tour') setOpenTourId(null);
           }}
+          email={email}
           L={L}
         />
       )}

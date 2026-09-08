@@ -163,6 +163,9 @@ export const FixturesTab: React.FC<FixturesTabProps> = ({
                     ? `${m.sa} – ${m.sb} (Ida)`
                     : 'vs';
 
+                  const isParticipant = (Boolean(userNick) && (isMeA || isMeB));
+                  const canScore = canManage || isParticipant;
+
                   return (
                     <div
                       key={m.id}
@@ -173,10 +176,11 @@ export const FixturesTab: React.FC<FixturesTabProps> = ({
                         padding: '12px 14px',
                         background: 'var(--color-surface)',
                         border: '1px solid var(--color-divider)',
-                        cursor: canManage ? 'pointer' : 'default',
+                        cursor: canScore ? 'pointer' : 'default',
                         transition: 'background 0.15s ease'
                       }}
-                      onClick={() => canManage && onOpenScore(m)}
+                      onClick={() => canScore && onOpenScore(m)}
+                      title={canScore ? 'Haz clic para cargar/editar marcador' : undefined}
                     >
                       {/* Player A */}
                       <div

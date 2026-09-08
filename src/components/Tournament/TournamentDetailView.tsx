@@ -23,7 +23,7 @@ import { PeopleTab } from './PeopleTab';
 import { ScoreModal } from './ScoreModal';
 import { AdminSheet, SheetMode } from './AdminSheet';
 import { AddPlayerModal } from './AddPlayerModal';
-import { ArrowLeft, Settings, Users, UserPlus, Trophy, BarChart3, Layers } from 'lucide-react';
+import { ArrowLeft, Settings, Users, UserPlus, Trophy, BarChart3, Layers, Share2, Copy, Link as LinkIcon, Eye } from 'lucide-react';
 
 interface TournamentDetailViewProps {
   tournament: Tournament;
@@ -34,6 +34,8 @@ interface TournamentDetailViewProps {
   L: StringsDict;
   isTablet: boolean;
   isTestUser?: boolean;
+  isGuestMode?: boolean;
+  onGoAuth?: () => void;
 }
 
 export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
@@ -44,7 +46,9 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
   onShowToast,
   L,
   isTablet,
-  isTestUser = false
+  isTestUser = false,
+  isGuestMode = false,
+  onGoAuth
 }) => {
   const [activeTab, setActiveTab] = useState<TournamentTab>('tabla');
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
@@ -52,10 +56,10 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
   const [targetMember, setTargetMember] = useState<Member | null>(null);
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
 
-  const myMember = tournament.members.find((p) => p.nick === userNick);
+  const myMember = isGuestMode ? undefined : tournament.members.find((p) => p.nick === userNick);
   const myRole = myMember?.role || 'jugador';
-  const isAdmin = myRole === 'admin';
-  const canManage = isAdmin || myRole === 'ayudante';
+  const isAdmin = isGuestMode ? false : myRole === 'admin';
+  const canManage = isGuestMode ? false : (isAdmin || myRole === 'ayudante');
 
   const isWaiting = tournament.members.length < tournament.teams && !tournament.closed;
 
@@ -456,6 +460,48 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      {/* Guest Mode Notice Banner */}
+      {isGuestMode && (
+        <div
+          style={{
+            background: 'linear-gradient(90deg, #1e3a8a 0%, #172554 100%)',
+            color: '#fff',
+            padding: '12px clamp(20px, 3vw, 56px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            borderBottom: '2px solid #3b82f6',
+            zIndex: 40
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Eye size={18} style={{ color: '#60a5fa' }} />
+            <span style={{ fontSize: '13px' }}>
+              <strong>Modo Invitado:</strong> Estás viendo este torneo en modo de solo lectura.
+            </span>
+          </div>
+          {onGoAuth && (
+            <button
+              className="btn btn-primary"
+              style={{
+                padding: '6px 14px',
+                fontSize: '12px',
+                minHeight: '32px',
+                background: '#fff',
+                color: '#1e3a8a',
+                border: 'none',
+                fontWeight: 800
+              }}
+              onClick={onGoAuth}
+            >
+              Iniciar Sesión / Registrarse
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Top Header */}
       <div
         style={{
@@ -554,6 +600,107 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
             padding: isTablet ? '32px clamp(24px, 4vw, 56px) 48px' : '18px 20px 24px'
           }}
         >
+          {/* Prominent Tournament Room Code Banner */}
+          <div
+            style={{
+              background: 'var(--color-surface)',
+              border: '2px solid var(--color-divider)',
+              padding: isTablet ? '18px 24px' : '16px',
+              marginBottom: '20px',
+              display: 'flex',
+              flexDirection: isTablet ? 'row' : 'column',
+              alignItems: isTablet ? 'center' : 'stretch',
+              justifyContent: 'space-between',
+              gap: '16px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div
+                style={{
+                  width: '46px',
+                  height: '46px',
+                  background: 'var(--color-accent)',
+                  color: 'var(--color-bg)',
+                  display: 'grid',
+                  placeItems: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <Share2 size={22} />
+              </div>
+              <div>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '.12em',
+                    color: 'var(--color-neutral-600)',
+                    fontWeight: 800
+                  }}
+                >
+                  Código de Sala / Torneo
+                </div>
+                <div
+                  style={{
+                    fontFamily: 'monospace',
+                    fontWeight: 900,
+                    fontSize: isTablet ? '26px' : '20px',
+                    letterSpacing: '.06em',
+                    color: 'var(--color-text)',
+                    lineHeight: 1.1,
+                    marginTop: '2px'
+                  }}
+                >
+                  {tournament.id}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+              <button
+                className="btn btn-secondary"
+                style={{
+                  gap: '8px',
+                  paddingInline: '16px',
+                  minHeight: '40px',
+                  flex: isTablet ? 'initial' : 1,
+                  justifyContent: 'center',
+                  fontSize: '12px',
+                  fontWeight: 800
+                }}
+                onClick={() => {
+                  navigator.clipboard.writeText(tournament.id);
+                  onShowToast(`Código copiado: ${tournament.id}`);
+                }}
+              >
+                <Copy size={16} />
+                <span>Copiar Código</span>
+              </button>
+
+              <button
+                className="btn btn-primary"
+                style={{
+                  gap: '8px',
+                  paddingInline: '16px',
+                  minHeight: '40px',
+                  flex: isTablet ? 'initial' : 1,
+                  justifyContent: 'center',
+                  fontSize: '12px',
+                  fontWeight: 800
+                }}
+                onClick={() => {
+                  const guestUrl = `${window.location.origin}${window.location.pathname}?t=${tournament.id}`;
+                  navigator.clipboard.writeText(guestUrl);
+                  onShowToast('Enlace de invitado copiado al portapapeles');
+                }}
+              >
+                <LinkIcon size={16} />
+                <span>Copiar Enlace de Invitado</span>
+              </button>
+            </div>
+          </div>
+
           {/* Waiting for players registration banner */}
           {isWaiting && (
             <div

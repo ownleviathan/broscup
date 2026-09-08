@@ -23,6 +23,8 @@ export interface Match {
   played: boolean;
   bye?: string | null;
   penaltyWinner?: 'a' | 'b' | null;
+  sideAProfileId?: string;
+  sideBProfileId?: string;
 }
 
 export interface Round {
@@ -82,7 +84,24 @@ export type ScreenType =
   | 'join'
   | 'tour'
   | 'history'
-  | 'profile';
+  | 'profile'
+  | 'admin-all';
+
+export interface AdminTournamentSummary {
+  id: string;
+  name: string;
+  game: string;
+  type: TournamentType;
+  teams: number;
+  closed: boolean;
+  mode: 'online' | 'offline';
+  created_at: string;
+  start_date?: string;
+  member_count: number;
+  total_matches: number;
+  played_matches: number;
+  champion_name?: string;
+}
 
 export type TournamentTab = 'tabla' | 'partidos' | 'bracket' | 'gente';
 

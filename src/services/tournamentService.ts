@@ -1,5 +1,170 @@
 import { supabase } from './supabase';
-import { Tournament, Match, Round, TournamentGroup, Member, FormState } from '../types/tournament';
+import {
+  Tournament,
+  Match,
+  Round,
+  TournamentGroup,
+  Member,
+  FormState,
+  AdminTournamentSummary
+} from '../types/tournament';
+
+// Helper to construct a unified Tournament model from DB rows
+export function mapSingleTournament(
+  t: any,
+  allMembers: any[],
+  allMatches: any[],
+  allGroups: any[],
+  champNickname?: string
+): Tournament {
+  // Map members
+  const members: Member[] = (allMembers || [])
+    .filter((m) => m.tournament_id === t.id)
+    .map((m) => ({
+      nick: (m.profiles as unknown as { nickname: string })?.nickname || 'Jugador',
+      role: m.role,
+      paid: m.paid,
+      profileId: m.profile_id,
+      teamName: m.team_name || undefined
+    }));
+
+  // Map raw matches
+  const tMatches = (allMatches || []).filter((m) => m.tournament_id === t.id);
+
+  const parsedMatches: Match[] = tMatches.map((m) => {
+    const aNick =
+      (m.side_a as unknown as { nickname: string })?.nickname || m.side_a_label || '';
+    const bNick =
+      (m.side_b as unknown as { nickname: string })?.nickname || m.side_b_label || '';
+    const byeNick = (m.bye as unknown as { nickname: string })?.nickname || null;
+
+    return {
+      id: m.id,
+      jornada: m.jornada || undefined,
+      a: aNick,
+      b: bNick,
+      sa: m.score_a,
+      sb: m.score_b,
+      s2a: m.score_a_leg2,
+      s2b: m.score_b_leg2,
+      legs: m.legs,
+      played: m.played,
+      bye: byeNick,
+      penaltyWinner: (m.penalty_winner as 'a' | 'b') || null,
+      sideAProfileId: m.side_a_profile_id,
+      sideBProfileId: m.side_b_profile_id
+    };
+  });
+
+  // Map rounds (for bracket)
+  const bracketMatches = tMatches.filter((m) => m.stage === 'bracket');
+  let rounds: Round[] | undefined;
+  if (bracketMatches.length > 0) {
+    const roundMap: Record<number, { name: string; matches: Match[] }> = {};
+    bracketMatches.forEach((m) => {
+      const rIdx = m.bracket_round || 0;
+      if (!roundMap[rIdx]) {
+        roundMap[rIdx] = {
+          name: m.bracket_round_name || 'Ronda',
+          matches: []
+        };
+      }
+      const posA = (m.bracket_position || 0) * 2 + 1;
+      const posB = (m.bracket_position || 0) * 2 + 2;
+      const aNick =
+        (m.side_a as unknown as { nickname: string })?.nickname ||
+        m.side_a_label ||
+        `Ganador ${posA}`;
+      const bNick =
+        (m.side_b as unknown as { nickname: string })?.nickname ||
+        m.side_b_label ||
+        `Ganador ${posB}`;
+
+      roundMap[rIdx].matches.push({
+        id: m.id,
+        a: aNick,
+        b: bNick,
+        sa: m.score_a,
+        sb: m.score_b,
+        s2a: m.score_a_leg2,
+        s2b: m.score_b_leg2,
+        legs: m.legs,
+        played: m.played,
+        penaltyWinner: (m.penalty_winner as 'a' | 'b') || null,
+        sideAProfileId: m.side_a_profile_id,
+        sideBProfileId: m.side_b_profile_id
+      });
+    });
+
+    rounds = Object.keys(roundMap)
+      .sort((a, b) => Number(a) - Number(b))
+      .map((k) => roundMap[Number(k)]);
+  }
+
+  // Map groups
+  const tGroups = (allGroups || []).filter((g) => g.tournament_id === t.id);
+  let groups: TournamentGroup[] | undefined;
+  if (tGroups.length > 0) {
+    groups = tGroups.map((g) => {
+      const groupMatches = tMatches.filter((m) => m.group_id === g.id);
+      const nicksSet = new Set<string>();
+      groupMatches.forEach((m) => {
+        const a = (m.side_a as unknown as { nickname: string })?.nickname;
+        const b = (m.side_b as unknown as { nickname: string })?.nickname;
+        if (a) nicksSet.add(a);
+        if (b) nicksSet.add(b);
+      });
+
+      return {
+        name: `Grupo ${g.letter}`,
+        letter: g.letter,
+        nicks: Array.from(nicksSet),
+        matches: groupMatches.map((m) => ({
+          id: m.id,
+          jornada: m.jornada || undefined,
+          a: (m.side_a as unknown as { nickname: string })?.nickname || '',
+          b: (m.side_b as unknown as { nickname: string })?.nickname || '',
+          sa: m.score_a,
+          sb: m.score_b,
+          s2a: m.score_a_leg2,
+          s2b: m.score_b_leg2,
+          legs: m.legs,
+          played: m.played,
+          penaltyWinner: (m.penalty_winner as 'a' | 'b') || null,
+          sideAProfileId: m.side_a_profile_id,
+          sideBProfileId: m.side_b_profile_id
+        }))
+      };
+    });
+  }
+
+  const feeFormatted = t.fee_amount_cents
+    ? `${(t.fee_amount_cents / 100).toFixed(0)} €`
+    : '0 €';
+
+  return {
+    id: t.id,
+    name: t.name,
+    game: t.game,
+    date: t.start_date || '',
+    type: t.type,
+    teams: t.teams,
+    finals: t.final_format,
+    legs: t.legs,
+    semiLegs: t.semi_legs,
+    finalLegs: t.final_legs,
+    groupLegs: t.group_legs || 1,
+    feeOn: t.fee_on,
+    fee: feeFormatted,
+    closed: t.closed,
+    mode: (t.mode as 'online' | 'offline') || 'online',
+    champ: champNickname,
+    members,
+    matches: parsedMatches.filter((m) => !bracketMatches.some((bm) => bm.id === m.id)),
+    rounds,
+    groups
+  };
+}
 
 export const tournamentService = {
   // 1. Fetch all tournaments where user is a member
@@ -35,6 +200,7 @@ export const tournamentService = {
       .from('matches')
       .select(
         `id, tournament_id, stage, jornada, group_id, bracket_round, bracket_round_name, bracket_position,
+         side_a_profile_id, side_b_profile_id,
          side_a_label, side_b_label, score_a, score_b, score_a_leg2, score_b_leg2, legs, played, penalty_winner,
          side_a:profiles!matches_side_a_profile_id_fkey(nickname),
          side_b:profiles!matches_side_b_profile_id_fkey(nickname),
@@ -70,148 +236,45 @@ export const tournamentService = {
     }
 
     // Build tournament models
-    return tourRows.map((t) => {
-      // Map members
-      const members: Member[] = (allMembers || [])
-        .filter((m) => m.tournament_id === t.id)
-        .map((m) => ({
-          nick: (m.profiles as unknown as { nickname: string })?.nickname || 'Jugador',
-          role: m.role,
-          paid: m.paid,
-          profileId: m.profile_id,
-          teamName: m.team_name || undefined
-        }));
+    return tourRows.map((t) =>
+      mapSingleTournament(
+        t,
+        allMembers || [],
+        allMatches || [],
+        allGroups || [],
+        t.champion_profile_id ? champMap[t.champion_profile_id] : undefined
+      )
+    );
+  },
 
-      // Map raw matches
-      const tMatches = (allMatches || []).filter((m) => m.tournament_id === t.id);
-
-      const parsedMatches: Match[] = tMatches.map((m) => {
-        const aNick =
-          (m.side_a as unknown as { nickname: string })?.nickname || m.side_a_label || '';
-        const bNick =
-          (m.side_b as unknown as { nickname: string })?.nickname || m.side_b_label || '';
-        const byeNick = (m.bye as unknown as { nickname: string })?.nickname || null;
-
-        return {
-          id: m.id,
-          jornada: m.jornada || undefined,
-          a: aNick,
-          b: bNick,
-          sa: m.score_a,
-          sb: m.score_b,
-          s2a: m.score_a_leg2,
-          s2b: m.score_b_leg2,
-          legs: m.legs,
-          played: m.played,
-          bye: byeNick,
-          penaltyWinner: (m.penalty_winner as 'a' | 'b') || null
-        };
-      });
-
-      // Map rounds (for bracket)
-      const bracketMatches = tMatches.filter((m) => m.stage === 'bracket');
-      let rounds: Round[] | undefined;
-      if (bracketMatches.length > 0) {
-        const roundMap: Record<number, { name: string; matches: Match[] }> = {};
-        bracketMatches.forEach((m) => {
-          const rIdx = m.bracket_round || 0;
-          if (!roundMap[rIdx]) {
-            roundMap[rIdx] = {
-              name: m.bracket_round_name || 'Ronda',
-              matches: []
-            };
-          }
-          const posA = (m.bracket_position || 0) * 2 + 1;
-          const posB = (m.bracket_position || 0) * 2 + 2;
-          const aNick =
-            (m.side_a as unknown as { nickname: string })?.nickname ||
-            m.side_a_label ||
-            `Ganador ${posA}`;
-          const bNick =
-            (m.side_b as unknown as { nickname: string })?.nickname ||
-            m.side_b_label ||
-            `Ganador ${posB}`;
-
-          roundMap[rIdx].matches.push({
-            id: m.id,
-            a: aNick,
-            b: bNick,
-            sa: m.score_a,
-            sb: m.score_b,
-            s2a: m.score_a_leg2,
-            s2b: m.score_b_leg2,
-            legs: m.legs,
-            played: m.played,
-            penaltyWinner: (m.penalty_winner as 'a' | 'b') || null
-          });
-        });
-
-        rounds = Object.keys(roundMap)
-          .sort((a, b) => Number(a) - Number(b))
-          .map((k) => roundMap[Number(k)]);
-      }
-
-      // Map groups
-      const tGroups = (allGroups || []).filter((g) => g.tournament_id === t.id);
-      let groups: TournamentGroup[] | undefined;
-      if (tGroups.length > 0) {
-        groups = tGroups.map((g) => {
-          const groupMatches = tMatches.filter((m) => m.group_id === g.id);
-          const nicksSet = new Set<string>();
-          groupMatches.forEach((m) => {
-            const a = (m.side_a as unknown as { nickname: string })?.nickname;
-            const b = (m.side_b as unknown as { nickname: string })?.nickname;
-            if (a) nicksSet.add(a);
-            if (b) nicksSet.add(b);
-          });
-
-          return {
-            name: `Grupo ${g.letter}`,
-            letter: g.letter,
-            nicks: Array.from(nicksSet),
-            matches: groupMatches.map((m) => ({
-              id: m.id,
-              jornada: m.jornada || undefined,
-              a: (m.side_a as unknown as { nickname: string })?.nickname || '',
-              b: (m.side_b as unknown as { nickname: string })?.nickname || '',
-              sa: m.score_a,
-              sb: m.score_b,
-              s2a: m.score_a_leg2,
-              s2b: m.score_b_leg2,
-              legs: m.legs,
-              played: m.played
-            }))
-          };
-        });
-      }
-
-      const feeFormatted = t.fee_amount_cents
-        ? `${(t.fee_amount_cents / 100).toFixed(0)} €`
-        : '0 €';
-
-      return {
-        id: t.id,
-        name: t.name,
-        game: t.game,
-        date: t.start_date || '',
-        type: t.type,
-        teams: t.teams,
-        finals: t.final_format,
-        legs: t.legs,
-        semiLegs: t.semi_legs,
-        finalLegs: t.final_legs,
-        groupLegs: t.group_legs || 1,
-        feeOn: t.fee_on,
-        fee: feeFormatted,
-        closed: t.closed,
-        mode: (t.mode as 'online' | 'offline') || 'online',
-        champ: t.champion_profile_id ? champMap[t.champion_profile_id] : undefined,
-        members,
-        matches: parsedMatches.filter((m) => !bracketMatches.some((bm) => bm.id === m.id)),
-        rounds,
-        groups
-      };
+  // Fetch tournament in public / guest mode
+  async fetchPublicTournament(tournamentId: string): Promise<Tournament | null> {
+    const { data, error } = await supabase.rpc('get_tournament_public', {
+      p_tournament_id: tournamentId
     });
+
+    if (error) throw error;
+    if (!data || !data.tournament) return null;
+
+    return mapSingleTournament(
+      data.tournament,
+      data.members || [],
+      data.matches || [],
+      data.groups || [],
+      data.champion_nickname || undefined
+    );
+  },
+
+  // Fetch all tournaments for superadmin test@broscup.com
+  async fetchAllTournamentsAdmin(
+    filter: 'all' | 'active' | 'archived' = 'all'
+  ): Promise<AdminTournamentSummary[]> {
+    const { data, error } = await supabase.rpc('get_all_tournaments_admin', {
+      p_filter: filter
+    });
+
+    if (error) throw error;
+    return (data as AdminTournamentSummary[]) || [];
   },
 
   // 2. Search open tournament by ID or name

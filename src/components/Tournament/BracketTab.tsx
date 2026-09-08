@@ -14,6 +14,7 @@ interface BracketTabProps {
 
 export const BracketTab: React.FC<BracketTabProps> = ({
   tournament,
+  userNick,
   onOpenScore,
   canManage,
   L,
@@ -141,7 +142,8 @@ export const BracketTab: React.FC<BracketTabProps> = ({
                   const two = Number(m.legs) === 2;
                   const aw = done && (totals.a > totals.b || (totals.a === totals.b && m.penaltyWinner === 'a'));
                   const bw = done && (totals.b > totals.a || (totals.a === totals.b && m.penaltyWinner === 'b'));
-                  const clickable = canManage && !isPlaceholder(m.a) && !isPlaceholder(m.b);
+                  const isParticipant = (Boolean(userNick) && (m.a === userNick || m.b === userNick));
+                  const clickable = (canManage || isParticipant) && !isPlaceholder(m.a) && !isPlaceholder(m.b);
                   const getTeam = (nick: string) => tournament.members.find((mb) => mb.nick === nick)?.teamName;
 
                   return (

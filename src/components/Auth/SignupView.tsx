@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StringsDict, Language } from '../../types/tournament';
 import { ArrowLeft, ArrowRight, Eye, EyeOff, Check, X, Sparkles, Mail, RefreshCw } from 'lucide-react';
+import { APP_VERSION } from '../../config/version';
 import { authService } from '../../services/authService';
 
 interface SignupViewProps {
@@ -526,6 +527,10 @@ export const SignupView: React.FC<SignupViewProps> = ({
               >
                 {L.enter}
               </a>
+            </div>
+
+            <div style={{ marginTop: '16px', fontSize: '11px', color: 'var(--color-neutral-500)', fontFamily: 'monospace' }}>
+              Versión {APP_VERSION}
             </div>
           </>
         )}

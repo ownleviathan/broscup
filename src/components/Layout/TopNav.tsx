@@ -8,6 +8,7 @@ interface TopNavProps {
   onOpenCreate: () => void;
   onOpenJoin: () => void;
   nick: string;
+  email?: string;
   L: StringsDict;
 }
 
@@ -17,15 +18,21 @@ export const TopNav: React.FC<TopNavProps> = ({
   onOpenCreate,
   onOpenJoin,
   nick,
+  email,
   L
 }) => {
   const initial = (nick || 'J')[0].toUpperCase();
+  const isSuperAdmin = email?.trim().toLowerCase() === 'test@broscup.com';
 
   const navItems: { key: ScreenType; label: string }[] = [
     { key: 'dash', label: L.navT },
     { key: 'history', label: L.navH },
     { key: 'profile', label: L.navP }
   ];
+
+  if (isSuperAdmin) {
+    navItems.push({ key: 'admin-all', label: '🛡️ Panel Admin' });
+  }
 
   return (
     <header
