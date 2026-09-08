@@ -332,3 +332,7 @@ BEGIN
     ON CONFLICT (id) DO UPDATE SET nickname = 'AdminBros';
   END IF;
 END $$;
+
+-- Refresh PostgREST schema cache
+NOTIFY pgrst, 'reload schema';
+
