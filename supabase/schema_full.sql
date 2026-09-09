@@ -783,41 +783,59 @@ declare
   already_member boolean;
   participant_ids uuid[];
   seed_labels text[];
+  clean_id text;
+  caller_nick text;
 begin
   if caller is null then
     raise exception 'not_authorized' using errcode = '42501';
   end if;
 
-  select * into t from public.tournaments where id = p_tournament_id and closed = false;
+  clean_id := upper(trim(p_tournament_id));
+
+  -- Ensure caller profile exists to satisfy foreign key constraint tournament_members_profile_id_fkey
+  if not exists (select 1 from public.profiles where id = caller) then
+    select coalesce(
+      (select raw_user_meta_data->>'nickname' from auth.users where id = caller),
+      split_part((select email from auth.users where id = caller), '@', 1),
+      'jugador'
+    ) into caller_nick;
+
+    insert into public.profiles (id, nickname, nickname_confirmed)
+    values (caller, caller_nick || '_' || substr(caller::text, 1, 4), false)
+    on conflict (id) do nothing;
+  end if;
+
+  select * into t from public.tournaments
+    where (id = clean_id or id = trim(p_tournament_id)) and closed = false;
   if t.id is null then
     raise exception 'tournament_not_found' using errcode = 'P0002';
   end if;
 
   select exists(
     select 1 from public.tournament_members
-    where tournament_id = p_tournament_id and profile_id = caller
+    where tournament_id = t.id and profile_id = caller
   ) into already_member;
 
   if already_member then
-    return jsonb_build_object('tournamentId', p_tournament_id, 'already_member', true);
+    return jsonb_build_object('tournamentId', t.id, 'already_member', true, 'full', false);
   end if;
 
   select count(*) into member_count
     from public.tournament_members
-    where tournament_id = p_tournament_id;
+    where tournament_id = t.id;
 
   if member_count >= t.teams then
     raise exception 'tournament_full' using errcode = 'P0001';
   end if;
 
   insert into public.tournament_members (tournament_id, profile_id, role, paid, team_name)
-    values (p_tournament_id, caller, 'jugador', false, p_team_name);
+    values (t.id, caller, 'jugador', false, nullif(trim(p_team_name), ''));
 
   member_count := member_count + 1;
 
   if member_count = t.teams then
     select array_agg(profile_id order by joined_at) into participant_ids
-      from public.tournament_members where tournament_id = p_tournament_id;
+      from public.tournament_members where tournament_id = t.id;
 
     if t.type = 'liga' then
       perform public.generate_round_robin(p_tournament_id, participant_ids, t.legs, 'league');

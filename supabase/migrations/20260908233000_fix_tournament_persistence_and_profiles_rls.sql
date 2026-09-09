@@ -92,4 +92,120 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.create_tournament(text, text, date, text, integer, boolean, integer, text, integer, integer, integer, text, text, integer) TO authenticated;
 
+-- 3. Update join_tournament to support case-insensitive/trimmed ID and guarantee caller profile exists
+CREATE OR REPLACE FUNCTION public.join_tournament(
+  p_tournament_id text,
+  p_team_name text DEFAULT NULL::text
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+declare
+  caller uuid := auth.uid();
+  t public.tournaments;
+  member_count int;
+  already_member boolean;
+  participant_ids uuid[];
+  seed_labels text[];
+  clean_id text;
+  caller_nick text;
+begin
+  if caller is null then
+    raise exception 'not_authorized' using errcode = '42501';
+  end if;
+
+  clean_id := upper(trim(p_tournament_id));
+
+  -- Ensure caller profile exists to satisfy foreign key constraint tournament_members_profile_id_fkey
+  if not exists (select 1 from public.profiles where id = caller) then
+    select coalesce(
+      (select raw_user_meta_data->>'nickname' from auth.users where id = caller),
+      split_part((select email from auth.users where id = caller), '@', 1),
+      'jugador'
+    ) into caller_nick;
+
+    insert into public.profiles (id, nickname, nickname_confirmed)
+    values (caller, caller_nick || '_' || substr(caller::text, 1, 4), false)
+    on conflict (id) do nothing;
+  end if;
+
+  select * into t from public.tournaments
+    where (id = clean_id or id = trim(p_tournament_id)) and closed = false;
+
+  if t.id is null then
+    raise exception 'tournament_not_found' using errcode = 'P0002';
+  end if;
+
+  select exists(
+    select 1 from public.tournament_members
+    where tournament_id = t.id and profile_id = caller
+  ) into already_member;
+
+  if already_member then
+    return jsonb_build_object('tournamentId', t.id, 'already_member', true, 'full', false);
+  end if;
+
+  select count(*) into member_count
+    from public.tournament_members
+    where tournament_id = t.id;
+
+  if member_count >= t.teams then
+    raise exception 'tournament_full' using errcode = 'P0001';
+  end if;
+
+  insert into public.tournament_members (tournament_id, profile_id, role, paid, team_name)
+    values (t.id, caller, 'jugador', false, nullif(trim(p_team_name), ''));
+
+  member_count := member_count + 1;
+
+  if member_count = t.teams then
+    select array_agg(profile_id order by joined_at) into participant_ids
+      from public.tournament_members where tournament_id = t.id;
+
+    if t.type = 'liga' then
+      perform public.generate_round_robin(t.id, participant_ids, t.legs, 'league');
+    elsif t.type = 'copa' then
+      seed_labels := array_fill(null::text, array[array_length(participant_ids, 1)]);
+      perform public.generate_bracket(t.id, participant_ids, seed_labels);
+    elsif t.type = 'grupos' then
+      declare
+        group_count int := array_length(participant_ids, 1) / 4;
+        shuffled uuid[];
+        g int;
+        gid uuid;
+        letter char(1);
+        group_participants uuid[];
+        letters text[] := array[]::text[];
+        seed_ids uuid[] := array[]::uuid[];
+      begin
+        select array_agg(profile_id order by random()) into shuffled
+          from public.tournament_members where tournament_id = t.id;
+
+        for g in 0..(group_count - 1) loop
+          letter := chr(65 + g);
+          letters := array_append(letters, letter);
+          insert into public.groups (tournament_id, letter)
+            values (t.id, letter)
+            returning id into gid;
+
+          group_participants := shuffled[(g * 4 + 1):(g * 4 + 4)];
+
+          insert into public.group_members (group_id, profile_id)
+            select gid, unnest(group_participants);
+
+          perform public.generate_round_robin(t.id, group_participants, coalesce(t.group_legs, 1), 'group', gid);
+        end loop;
+
+        seed_ids := array_fill(null::uuid, array[group_count * 2]);
+        perform public.generate_bracket_from_groups(t.id, seed_ids, letters, t.final_format);
+      end;
+    end if;
+  end if;
+
+  return jsonb_build_object('tournamentId', t.id, 'already_member', false, 'full', member_count = t.teams);
+end;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.join_tournament(text, text) TO authenticated;
+
 NOTIFY pgrst, 'reload schema';

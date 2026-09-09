@@ -307,38 +307,80 @@ export const App: React.FC = () => {
   };
 
   const handleJoinTournament = async (tournamentId: string, teamName?: string) => {
-    if (userId) {
-      try {
-        await tournamentService.joinTournament(tournamentId, teamName);
-        await refreshTournaments(userId);
-        setOpenTourId(tournamentId);
-        setScreen('tour');
-        showToast(`${L.tJoined} ${tournamentId}`);
-        return;
-      } catch (err) {
-        console.warn('Join tournament DB call error, checking local:', err);
-      }
-    }
+    const cleanId = tournamentId.trim().toUpperCase();
 
-    // Local fallback
-    const target = data.tours.find((t) => t.id === tournamentId);
-    if (!target) {
-      showToast(L.tCheckId);
+    if (!userId) {
+      setPendingJoinCode(cleanId);
+      setScreen('auth');
+      showToast('Inicia sesión o regístrate para unirte a este torneo.');
       return;
     }
 
-    const already = target.members.some((m) => m.nick === userNick);
-    if (!already) {
-      const updated: Tournament = {
-        ...target,
-        members: [...target.members, { nick: userNick, role: 'jugador', paid: !target.feeOn, teamName }]
-      };
-      handleUpdateTournament(updated);
-      showToast(`${L.tJoined} ${target.name}`);
-    }
+    try {
+      const res = await tournamentService.joinTournament(cleanId, teamName);
+      const resolvedId = res?.tournamentId || cleanId;
+      await refreshTournaments(userId);
 
-    setOpenTourId(target.id);
-    setScreen('tour');
+      // Ensure the tournament is loaded in data.tours
+      const exists = data.tours.some((t) => t.id.toUpperCase() === resolvedId.toUpperCase());
+      if (!exists) {
+        const fetched = await tournamentService.fetchPublicTournament(resolvedId);
+        if (fetched) {
+          setData((prev) => ({
+            ...prev,
+            tours: [fetched, ...prev.tours.filter((t) => t.id.toUpperCase() !== fetched.id.toUpperCase())]
+          }));
+        }
+      }
+
+      setOpenTourId(resolvedId);
+      setScreen('tour');
+      showToast(res?.already_member ? 'Ya eres participante de este torneo' : `${L.tJoined} ${resolvedId}`);
+      return;
+    } catch (err: any) {
+      console.error('Join tournament DB call error:', err);
+      const msg = (err?.message || '').toLowerCase();
+      if (msg.includes('tournament_full')) {
+        showToast('El torneo ya está completo.');
+        return;
+      }
+      if (msg.includes('tournament_not_found')) {
+        showToast(L.tCheckId);
+        return;
+      }
+      if (msg.includes('not_authorized')) {
+        setPendingJoinCode(cleanId);
+        setScreen('auth');
+        showToast('Debes iniciar sesión para unirte.');
+        return;
+      }
+
+      // Check if it exists locally as fallback
+      const localTarget = data.tours.find((t) => t.id.toUpperCase() === cleanId.toUpperCase());
+      if (localTarget) {
+        const already = localTarget.members.some(
+          (m) =>
+            (userId && m.profileId === userId) ||
+            (userNick && m.nick.toLowerCase() === userNick.toLowerCase())
+        );
+        if (!already) {
+          const updated: Tournament = {
+            ...localTarget,
+            members: [
+              ...localTarget.members,
+              { nick: userNick, role: 'jugador', paid: !localTarget.feeOn, profileId: userId, teamName }
+            ]
+          };
+          handleUpdateTournament(updated);
+          showToast(`${L.tJoined} ${localTarget.name}`);
+        }
+        setOpenTourId(localTarget.id);
+        setScreen('tour');
+        return;
+      }
+
+      showToast(err?.message ? `No se pudo unir: ${err.message}` : L.tCheckId);
+    }
   };
 
   // Profile Handlers

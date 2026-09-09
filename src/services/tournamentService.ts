@@ -364,7 +364,7 @@ export const tournamentService = {
       p_team_name: teamName?.trim() || null
     });
     if (error) throw error;
-    return data as { tournamentId: string; full: boolean };
+    return data as { tournamentId: string; full: boolean; already_member?: boolean };
   },
 
   // 4b. Add offline member via RPC
