@@ -420,9 +420,23 @@ declare
   num text;
   tries int := 0;
   v_mode text;
+  caller_nick text;
 begin
   if caller is null then
     raise exception 'not_authorized' using errcode = '42501';
+  end if;
+
+  -- Ensure caller profile exists to satisfy foreign key constraints
+  if not exists (select 1 from public.profiles where id = caller) then
+    select coalesce(
+      (select raw_user_meta_data->>'nickname' from auth.users where id = caller),
+      split_part((select email from auth.users where id = caller), '@', 1),
+      'jugador'
+    ) into caller_nick;
+
+    insert into public.profiles (id, nickname, nickname_confirmed)
+    values (caller, caller_nick || '_' || substr(caller::text, 1, 4), false)
+    on conflict (id) do nothing;
   end if;
 
   v_mode := lower(coalesce(nullif(trim(p_mode), ''), 'online'));
@@ -1945,6 +1959,8 @@ CREATE POLICY profiles_select ON public.profiles FOR SELECT USING (((id = auth.u
 --
 
 CREATE POLICY profiles_update_own ON public.profiles FOR UPDATE USING ((id = auth.uid()));
+
+CREATE POLICY profiles_insert_own ON public.profiles FOR INSERT WITH CHECK ((id = auth.uid()));
 
 
 --

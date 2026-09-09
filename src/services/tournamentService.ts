@@ -10,6 +10,14 @@ import {
   AdminPlayerSummary
 } from '../types/tournament';
 
+// Helper to extract nickname from Supabase join whether object or array
+export function extractNickname(prof: any): string | undefined {
+  if (!prof) return undefined;
+  if (Array.isArray(prof)) return prof[0]?.nickname;
+  if (typeof prof === 'object') return prof.nickname;
+  return undefined;
+}
+
 // Helper to construct a unified Tournament model from DB rows
 export function mapSingleTournament(
   t: any,
@@ -22,7 +30,7 @@ export function mapSingleTournament(
   const members: Member[] = (allMembers || [])
     .filter((m) => m.tournament_id === t.id)
     .map((m) => ({
-      nick: (m.profiles as unknown as { nickname: string })?.nickname || 'Jugador',
+      nick: extractNickname(m.profiles) || 'Jugador',
       role: m.role,
       paid: m.paid,
       profileId: m.profile_id,
@@ -33,11 +41,9 @@ export function mapSingleTournament(
   const tMatches = (allMatches || []).filter((m) => m.tournament_id === t.id);
 
   const parsedMatches: Match[] = tMatches.map((m) => {
-    const aNick =
-      (m.side_a as unknown as { nickname: string })?.nickname || m.side_a_label || '';
-    const bNick =
-      (m.side_b as unknown as { nickname: string })?.nickname || m.side_b_label || '';
-    const byeNick = (m.bye as unknown as { nickname: string })?.nickname || null;
+    const aNick = extractNickname(m.side_a) || m.side_a_label || '';
+    const bNick = extractNickname(m.side_b) || m.side_b_label || '';
+    const byeNick = extractNickname(m.bye) || null;
 
     return {
       id: m.id,
@@ -73,11 +79,11 @@ export function mapSingleTournament(
       const posA = (m.bracket_position || 0) * 2 + 1;
       const posB = (m.bracket_position || 0) * 2 + 2;
       const aNick =
-        (m.side_a as unknown as { nickname: string })?.nickname ||
+        extractNickname(m.side_a) ||
         m.side_a_label ||
         `Ganador ${posA}`;
       const bNick =
-        (m.side_b as unknown as { nickname: string })?.nickname ||
+        extractNickname(m.side_b) ||
         m.side_b_label ||
         `Ganador ${posB}`;
 
@@ -110,8 +116,8 @@ export function mapSingleTournament(
       const groupMatches = tMatches.filter((m) => m.group_id === g.id);
       const nicksSet = new Set<string>();
       groupMatches.forEach((m) => {
-        const a = (m.side_a as unknown as { nickname: string })?.nickname;
-        const b = (m.side_b as unknown as { nickname: string })?.nickname;
+        const a = extractNickname(m.side_a);
+        const b = extractNickname(m.side_b);
         if (a) nicksSet.add(a);
         if (b) nicksSet.add(b);
       });
@@ -123,8 +129,8 @@ export function mapSingleTournament(
         matches: groupMatches.map((m) => ({
           id: m.id,
           jornada: m.jornada || undefined,
-          a: (m.side_a as unknown as { nickname: string })?.nickname || '',
-          b: (m.side_b as unknown as { nickname: string })?.nickname || '',
+          a: extractNickname(m.side_a) || '',
+          b: extractNickname(m.side_b) || '',
           sa: m.score_a,
           sb: m.score_b,
           s2a: m.score_a_leg2,
@@ -169,10 +175,12 @@ export function mapSingleTournament(
 
 export const tournamentService = {
   // 1. Fetch all tournaments where user is a member
-  async fetchUserTournaments(): Promise<Tournament[]> {
-    const { data: memberRows, error: mError } = await supabase
-      .from('tournament_members')
-      .select('tournament_id');
+  async fetchUserTournaments(userId?: string): Promise<Tournament[]> {
+    let query = supabase.from('tournament_members').select('tournament_id');
+    if (userId) {
+      query = query.eq('profile_id', userId);
+    }
+    const { data: memberRows, error: mError } = await query;
 
     if (mError) throw mError;
     if (!memberRows || memberRows.length === 0) return [];

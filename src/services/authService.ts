@@ -73,36 +73,47 @@ export const authService = {
   },
 
   async getProfile(userId: string): Promise<UserProfile | null> {
-    // 1. Intento desde la tabla profiles
+    // 1. Obtener nickname de user_metadata (siempre accesible por el usuario autenticado)
+    let metaNick: string | undefined;
+    let metaConfirmed = false;
+    try {
+      const { data: userData } = await supabase.auth.getUser();
+      metaNick = userData?.user?.user_metadata?.nickname;
+      metaConfirmed = userData?.user?.user_metadata?.nickname_confirmed !== false;
+    } catch (e) {
+      console.warn('User metadata check error:', e);
+    }
+
+    // 2. Consulta desde la tabla profiles
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, nickname, locale, nickname_confirmed, created_at')
+        .select('id, nickname, locale, nickname_confirmed, created_at, is_blocked')
         .eq('id', userId)
         .maybeSingle();
 
       if (!error && data?.nickname) {
-        return data as UserProfile;
+        return {
+          id: userId,
+          nickname: (metaNick && metaConfirmed) ? metaNick : data.nickname,
+          locale: data.locale || 'es',
+          nickname_confirmed: data.nickname_confirmed ?? metaConfirmed,
+          created_at: data.created_at || new Date().toISOString(),
+          is_blocked: data.is_blocked
+        } as UserProfile;
       }
     } catch (e) {
       console.warn('Profiles table check error:', e);
     }
 
-    // 2. Fallback confiable: user_metadata de Supabase Auth
-    try {
-      const { data: userData } = await supabase.auth.getUser();
-      const meta = userData?.user?.user_metadata;
-      if (meta?.nickname) {
-        return {
-          id: userId,
-          nickname: meta.nickname,
-          locale: (meta.locale as 'es' | 'en') || 'es',
-          nickname_confirmed: meta.nickname_confirmed !== false,
-          created_at: userData?.user?.created_at || new Date().toISOString()
-        };
-      }
-    } catch (e) {
-      console.warn('User metadata check error:', e);
+    if (metaNick) {
+      return {
+        id: userId,
+        nickname: metaNick,
+        locale: 'es',
+        nickname_confirmed: metaConfirmed,
+        created_at: new Date().toISOString()
+      };
     }
 
     return null;
@@ -123,7 +134,27 @@ export const authService = {
       console.warn('Could not update user_metadata in Supabase auth:', e);
     }
 
-    // 2. Upsert en tabla profiles (crea la fila si no existe, la actualiza si existe)
+    // 2. Intentar UPDATE en tabla profiles primero (utiliza policy profiles_update_own)
+    try {
+      const { data: updateData, error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          nickname: cleanNick,
+          nickname_confirmed: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+        .select()
+        .maybeSingle();
+
+      if (!updateError && updateData) {
+        return updateData as UserProfile;
+      }
+    } catch (e) {
+      console.warn('Could not update profile row in DB:', e);
+    }
+
+    // 3. Si no existía la fila, intentar upsert/insert
     try {
       const { data, error } = await supabase
         .from('profiles')

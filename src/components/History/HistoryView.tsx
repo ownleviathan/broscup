@@ -6,6 +6,7 @@ import { Trophy, Search, X, BarChart3, Layers } from 'lucide-react';
 interface HistoryViewProps {
   tournaments: Tournament[];
   userNick: string;
+  userId?: string | null;
   onShowToast: (msg: string) => void;
   L: StringsDict;
   isTablet: boolean;
@@ -14,14 +15,21 @@ interface HistoryViewProps {
 export const HistoryView: React.FC<HistoryViewProps> = ({
   tournaments,
   userNick,
+  userId,
   onShowToast,
   L,
   isTablet
 }) => {
   const [query, setQuery] = useState('');
 
+  const isMyMember = (p: { nick?: string; profileId?: string }) => {
+    if (userId && p.profileId && p.profileId === userId) return true;
+    if (userNick && p.nick && p.nick.toLowerCase() === userNick.toLowerCase()) return true;
+    return false;
+  };
+
   const myClosedTournaments = tournaments.filter(
-    (t) => t.closed && t.members.some((p) => p.nick === userNick)
+    (t) => t.closed && t.members.some(isMyMember)
   );
 
   const q = query.trim().toLowerCase();

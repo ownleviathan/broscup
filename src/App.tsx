@@ -53,10 +53,11 @@ export const App: React.FC = () => {
   }, []);
 
   // Fetch tournaments from Supabase if user is logged in
-  const refreshTournaments = useCallback(async () => {
-    if (!userId) return;
+  const refreshTournaments = useCallback(async (overrideUserId?: string) => {
+    const activeUid = overrideUserId || userId;
+    if (!activeUid) return;
     try {
-      const dbTours = await tournamentService.fetchUserTournaments();
+      const dbTours = await tournamentService.fetchUserTournaments(activeUid);
       if (Array.isArray(dbTours)) {
         setData((prev) => ({
           ...prev,
@@ -158,7 +159,7 @@ export const App: React.FC = () => {
 
         // Fetch DB tournaments
         try {
-          const dbTours = await tournamentService.fetchUserTournaments();
+          const dbTours = await tournamentService.fetchUserTournaments(session.user.id);
           if (Array.isArray(dbTours)) {
             setData((prev) => ({ ...prev, tours: dbTours }));
           }
@@ -207,7 +208,7 @@ export const App: React.FC = () => {
         } else {
           setScreen('nickname');
         }
-        refreshTournaments();
+        await refreshTournaments(uid);
         return;
       }
     } catch (err) {
@@ -275,21 +276,30 @@ export const App: React.FC = () => {
       try {
         const res = await tournamentService.createTournament(formState);
         if (res && res.id) {
-          await refreshTournaments();
+          await refreshTournaments(userId);
           setOpenTourId(res.id);
           setScreen('tour');
           showToast(formState.mode === 'offline' ? 'Torneo presencial creado con éxito' : L.tCopied);
           return;
         }
       } catch (err) {
-        console.warn('Create tournament in DB failed, using local:', err);
+        console.error('Create tournament in DB failed, using local fallback:', err);
+        showToast('Error al guardar en el servidor. Guardado localmente.');
       }
     }
 
-    // Local fallback
+    // Local fallback with profileId attached
+    const localTourWithProfile: Tournament = {
+      ...newTour,
+      members: newTour.members.map((m) => ({
+        ...m,
+        profileId: m.profileId || userId || undefined
+      }))
+    };
+
     setData((prev) => ({
       ...prev,
-      tours: [newTour, ...prev.tours]
+      tours: [localTourWithProfile, ...prev.tours]
     }));
     setOpenTourId(newTour.id);
     setScreen('tour');
@@ -300,7 +310,7 @@ export const App: React.FC = () => {
     if (userId) {
       try {
         await tournamentService.joinTournament(tournamentId, teamName);
-        await refreshTournaments();
+        await refreshTournaments(userId);
         setOpenTourId(tournamentId);
         setScreen('tour');
         showToast(`${L.tJoined} ${tournamentId}`);
@@ -403,6 +413,12 @@ export const App: React.FC = () => {
     }
     setUserId(null);
     setEmail('');
+    setUserNick('');
+    setData((prev) => ({
+      ...prev,
+      ownerNick: null,
+      tours: []
+    }));
     setScreen('auth');
   };
 
@@ -498,6 +514,7 @@ export const App: React.FC = () => {
           <DashboardView
             tournaments={data.tours}
             nick={userNick}
+            userId={userId}
             onOpenTournament={(id) => {
               setOpenTourId(id);
               setScreen('tour');
@@ -523,6 +540,7 @@ export const App: React.FC = () => {
           <JoinTournamentView
             tournaments={data.tours}
             userNick={userNick}
+            userId={userId}
             onJoin={(tourId, team) => {
               setPendingJoinCode(null);
               window.history.replaceState({}, '', window.location.pathname);
@@ -543,6 +561,7 @@ export const App: React.FC = () => {
           <TournamentDetailView
             tournament={currentTour}
             userNick={userNick}
+            userId={userId}
             onUpdateTournament={handleUpdateTournament}
             onBack={() => {
               if (!userId) {
@@ -590,6 +609,7 @@ export const App: React.FC = () => {
           <HistoryView
             tournaments={data.tours}
             userNick={userNick}
+            userId={userId}
             onShowToast={showToast}
             L={L}
             isTablet={isTablet}

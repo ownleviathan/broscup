@@ -29,6 +29,7 @@ import { ArrowLeft, Settings, Users, UserPlus, Trophy, BarChart3, Layers, Share2
 interface TournamentDetailViewProps {
   tournament: Tournament;
   userNick: string;
+  userId?: string | null;
   onUpdateTournament: (updated: Tournament) => void;
   onBack: () => void;
   onShowToast: (msg: string) => void;
@@ -42,6 +43,7 @@ interface TournamentDetailViewProps {
 export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
   tournament,
   userNick,
+  userId,
   onUpdateTournament,
   onBack,
   onShowToast,
@@ -58,7 +60,13 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
   const [showAddPlayerModal, setShowAddPlayerModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
-  const myMember = isGuestMode ? undefined : tournament.members.find((p) => p.nick === userNick);
+  const myMember = isGuestMode
+    ? undefined
+    : tournament.members.find(
+        (p) =>
+          (userId && p.profileId && p.profileId === userId) ||
+          (userNick && p.nick && p.nick.toLowerCase() === userNick.toLowerCase())
+      );
   const myRole = myMember?.role || 'jugador';
   const isAdmin = isGuestMode ? false : myRole === 'admin';
   const canManage = isGuestMode ? false : (isAdmin || myRole === 'ayudante');

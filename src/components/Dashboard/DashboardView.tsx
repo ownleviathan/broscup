@@ -6,6 +6,7 @@ import { Plus, ArrowRight, BarChart3, Trophy, Layers } from 'lucide-react';
 interface DashboardViewProps {
   tournaments: Tournament[];
   nick: string;
+  userId?: string | null;
   onOpenTournament: (id: string) => void;
   onGoCreate: () => void;
   onGoJoin: () => void;
@@ -16,6 +17,7 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({
   tournaments,
   nick,
+  userId,
   onOpenTournament,
   onGoCreate,
   onGoJoin,
@@ -23,12 +25,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   isTablet
 }) => {
   const initial = (nick || 'J')[0].toUpperCase();
-  const myTournaments = tournaments.filter((t) => t.members.some((p) => p.nick === nick));
+
+  const isMyMember = (p: { nick?: string; profileId?: string }) => {
+    if (userId && p.profileId && p.profileId === userId) return true;
+    if (nick && p.nick && p.nick.toLowerCase() === nick.toLowerCase()) return true;
+    return false;
+  };
+
+  const myTournaments = tournaments.filter((t) => t.members.some(isMyMember));
   const activeTournaments = myTournaments.filter((t) => !t.closed);
   const closedTournaments = myTournaments.filter((t) => t.closed);
 
   const getMyRole = (t: Tournament) => {
-    const m = t.members.find((p) => p.nick === nick);
+    const m = t.members.find(isMyMember);
     if (!m) return '';
     return m.role === 'admin' ? L.admin : m.role === 'ayudante' ? L.helper : '';
   };

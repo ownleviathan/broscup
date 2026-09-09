@@ -7,6 +7,7 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 interface JoinTournamentViewProps {
   tournaments: Tournament[];
   userNick: string;
+  userId?: string | null;
   onJoin: (tournamentId: string, teamName?: string) => void;
   onCancel: () => void;
   L: StringsDict;
@@ -28,6 +29,7 @@ interface FoundTournament {
 export const JoinTournamentView: React.FC<JoinTournamentViewProps> = ({
   tournaments,
   userNick,
+  userId,
   onJoin,
   onCancel,
   L,
@@ -73,7 +75,11 @@ export const JoinTournamentView: React.FC<JoinTournamentViewProps> = ({
         type: localMatch.type,
         teams: Number(localMatch.teams),
         memberCount: localMatch.members.length,
-        isAlreadyMember: localMatch.members.some((p) => p.nick === userNick),
+        isAlreadyMember: localMatch.members.some(
+          (p) =>
+            (userId && p.profileId && p.profileId === userId) ||
+            (userNick && p.nick && p.nick.toLowerCase() === userNick.toLowerCase())
+        ),
         isFull: localMatch.members.length >= Number(localMatch.teams)
       });
       return;
