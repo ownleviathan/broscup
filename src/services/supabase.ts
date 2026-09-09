@@ -7,6 +7,7 @@ const rawUrl = (
 )
   .trim()
   .replace(/^["']|["']$/g, '')
+  .replace(/\/rest\/v1\/?$/, '')
   .replace(/\/+$/, '');
 
 const rawKey = (
