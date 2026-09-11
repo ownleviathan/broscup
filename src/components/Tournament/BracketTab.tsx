@@ -1,13 +1,14 @@
 import React from 'react';
 import { Tournament, Match, StringsDict } from '../../types/tournament';
 import { agg, winnerOf } from '../../utils/tournamentEngine';
-import { Trophy } from 'lucide-react';
+import { Trophy, CheckCircle } from 'lucide-react';
 
 interface BracketTabProps {
   tournament: Tournament;
   userNick: string;
   onOpenScore: (match: Match) => void;
   canManage: boolean;
+  onCloseTournament?: () => void;
   L: StringsDict;
   isTablet: boolean;
 }
@@ -17,6 +18,7 @@ export const BracketTab: React.FC<BracketTabProps> = ({
   userNick,
   onOpenScore,
   canManage,
+  onCloseTournament,
   L,
   isTablet
 }) => {
@@ -45,41 +47,71 @@ export const BracketTab: React.FC<BracketTabProps> = ({
           style={{
             background: 'var(--color-accent)',
             color: '#fff',
-            padding: '24px',
+            padding: isTablet ? '20px 24px' : '16px',
             display: 'flex',
             alignItems: 'center',
-            gap: '18px',
-            borderLeft: '6px solid var(--color-accent-800)'
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '16px',
+            borderLeft: '6px solid var(--color-accent-800)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.08)'
           }}
         >
-          <div
-            style={{
-              width: '54px',
-              height: '54px',
-              background: 'rgba(255,255,255,0.15)',
-              display: 'grid',
-              placeItems: 'center',
-              flex: 'none'
-            }}
-          >
-            <Trophy size={32} color="#fff" />
-          </div>
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
             <div
               style={{
-                fontSize: '11px',
-                letterSpacing: '.18em',
-                textTransform: 'uppercase',
-                opacity: 0.85,
-                fontWeight: 700
+                width: '54px',
+                height: '54px',
+                background: 'rgba(255,255,255,0.15)',
+                display: 'grid',
+                placeItems: 'center',
+                flex: 'none'
               }}
             >
-              {L.champion}
+              <Trophy size={32} color="#fff" />
             </div>
-            <div style={{ font: '800 32px/1.1 var(--font-heading)', marginTop: '2px' }}>
-              {championNick}
+            <div>
+              <div
+                style={{
+                  fontSize: '11px',
+                  letterSpacing: '.18em',
+                  textTransform: 'uppercase',
+                  opacity: 0.85,
+                  fontWeight: 700
+                }}
+              >
+                {L.champion}
+              </div>
+              <div style={{ font: '800 32px/1.1 var(--font-heading)', marginTop: '2px' }}>
+                {championNick}
+              </div>
             </div>
           </div>
+
+          {canManage && !tournament.closed && onCloseTournament && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{
+                background: '#fff',
+                color: 'var(--color-accent)',
+                fontWeight: 800,
+                fontSize: '13px',
+                padding: '10px 20px',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                flexShrink: 0
+              }}
+              onClick={onCloseTournament}
+            >
+              <CheckCircle size={16} />
+              <span>Cerrar Torneo</span>
+            </button>
+          )}
         </div>
       )}
 

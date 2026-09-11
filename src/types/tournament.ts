@@ -54,8 +54,10 @@ export interface Tournament {
   feeOn: boolean;
   fee?: string;
   closed: boolean;
+  started?: boolean;
   mode?: 'online' | 'offline';
   champ?: string;
+  createdBy?: string;
   members: Member[];
   matches: Match[];
   rounds?: Round[];

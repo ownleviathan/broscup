@@ -24,7 +24,7 @@ import { ScoreModal } from './ScoreModal';
 import { AdminSheet, SheetMode } from './AdminSheet';
 import { AddPlayerModal } from './AddPlayerModal';
 import { InvitePlayersModal } from './InvitePlayersModal';
-import { ArrowLeft, Settings, Users, UserPlus, Trophy, BarChart3, Layers, Share2, Copy, Eye } from 'lucide-react';
+import { ArrowLeft, Settings, Users, UserPlus, Trophy, BarChart3, Layers, Share2, Copy, Eye, Play, Plus, Minus } from 'lucide-react';
 
 interface TournamentDetailViewProps {
   tournament: Tournament;
@@ -68,9 +68,21 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
           (userNick && p.nick && p.nick.toLowerCase() === userNick.toLowerCase())
       );
   const myRole = myMember?.role || 'jugador';
-  const isAdmin = isGuestMode ? false : myRole === 'admin';
-  const canManage = isGuestMode ? false : (isAdmin || myRole === 'ayudante');
+  const isCreator = Boolean(
+    (userId && tournament.createdBy && tournament.createdBy === userId) ||
+    (userId && tournament.members.some((m) => m.role === 'admin' && m.profileId === userId)) ||
+    (userNick && tournament.members.some((m) => m.role === 'admin' && m.nick.toLowerCase() === userNick.toLowerCase()))
+  );
+  const isAdmin = isGuestMode ? isTestUser : (myRole === 'admin' || isCreator || isTestUser);
+  const canManage = isGuestMode ? isTestUser : (isAdmin || myRole === 'ayudante');
 
+  const isLeague = tournament.type === 'liga';
+  const isLeagueStarted = isLeague
+    ? (tournament.started !== undefined
+        ? tournament.started
+        : (tournament.matches.length > 0 && tournament.matches.some((m) => m.played)))
+    : true;
+  const isLeagueNotStarted = isLeague && !isLeagueStarted;
   const isWaiting = tournament.members.length < tournament.teams && !tournament.closed;
 
   // Tabs based on tournament type
@@ -130,7 +142,8 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
       updated.rounds = bracket(allNicks, L, { legs: updated.legs, semiLegs: updated.semiLegs, finalLegs: updated.finalLegs });
       updated.matches = [];
     } else if (updated.type === 'liga') {
-      updated.matches = rrMatches(allNicks, updated.legs || 1);
+      updated.started = false;
+      updated.matches = [];
       updated.rounds = [];
     } else {
       // Grupos
@@ -158,7 +171,7 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
     }
 
     onUpdateTournament(updated);
-    onShowToast(L.tFull);
+    onShowToast(updated.type === 'liga' ? L.readyToStartLeague : L.tFull);
   };
 
   // Add offline member
@@ -190,7 +203,8 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
           updated.rounds = bracket(allNicks, L, { legs: updated.legs, semiLegs: updated.semiLegs, finalLegs: updated.finalLegs });
           updated.matches = [];
         } else if (updated.type === 'liga') {
-          updated.matches = rrMatches(allNicks, updated.legs || 1);
+          updated.started = false;
+          updated.matches = [];
           updated.rounds = [];
         } else {
           const numGroups = allNicks.length % 4 === 0 ? allNicks.length / 4 : 2;
@@ -215,12 +229,56 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
           updated.rounds = bracket(seeds, L, { legs: updated.legs, semiLegs: updated.semiLegs, finalLegs: updated.finalLegs });
         }
         onUpdateTournament(updated);
-        onShowToast('¡Torneo completo! Fixture generado.');
+        onShowToast(updated.type === 'liga' ? L.readyToStartLeague : '¡Torneo completo! Fixture generado.');
       } else {
         onUpdateTournament(updated);
         onShowToast(`Jugador "${nickname}" agregado.`);
       }
     }
+  };
+
+  // Adjust league teams count (slots) before start
+  const handleAdjustTeams = (delta: number) => {
+    if (tournament.type !== 'liga' || isLeagueStarted) return;
+    const currentTeams = Number(tournament.teams) || 4;
+    const newTeams = currentTeams + delta;
+    const minAllowed = Math.max(2, tournament.members.length);
+    const maxAllowed = 20;
+
+    if (newTeams < minAllowed) {
+      onShowToast(L.slotsMinAlert);
+      return;
+    }
+    if (newTeams > maxAllowed) {
+      return;
+    }
+
+    const updated: Tournament = {
+      ...tournament,
+      teams: newTeams,
+      started: false
+    };
+    onUpdateTournament(updated);
+    onShowToast(`${L.adjustSlots}: ${newTeams}`);
+  };
+
+  // Start league: generate matches and allow scoring
+  const handleStartLeague = () => {
+    if (tournament.type !== 'liga') return;
+    if (tournament.members.length !== tournament.teams) {
+      const missing = tournament.teams - tournament.members.length;
+      onShowToast(L.missingPlayersToStart.replace('{count}', String(missing)));
+      return;
+    }
+    const allNicks = tournament.members.map((m) => m.nick);
+    const updated: Tournament = {
+      ...tournament,
+      started: true,
+      matches: rrMatches(allNicks, tournament.legs || 1),
+      rounds: []
+    };
+    onUpdateTournament(updated);
+    onShowToast(L.leagueStartedSuccess);
   };
 
   // Start play-off for finished league
@@ -394,6 +452,9 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
       ...tournament,
       members: tournament.members.filter((m) => m.nick !== nick)
     };
+    if (updated.type === 'liga' && !updated.started) {
+      updated.matches = [];
+    }
     onUpdateTournament(updated);
     setSheetMode(null);
     onShowToast(`${nick} ${L.tRemoved}`);
@@ -730,8 +791,230 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
             </div>
           </div>
 
+          {/* Pre-Liga Control & Status Card */}
+          {isLeagueNotStarted && (
+            <div
+              style={{
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-divider)',
+                borderLeft: '4px solid var(--color-accent)',
+                padding: isTablet ? '20px 24px' : '16px',
+                marginBottom: '20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '14px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.03)'
+              }}
+            >
+              {/* Header row: title and status badge */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '10px'
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      font: '800 12px var(--font-heading)',
+                      letterSpacing: '.14em',
+                      textTransform: 'uppercase',
+                      color: 'var(--color-accent)'
+                    }}
+                  >
+                    Fase de Preparación de la Liga
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-neutral-600)', marginTop: '2px' }}>
+                    {tournament.members.length === tournament.teams
+                      ? L.readyToStartLeague
+                      : L.missingPlayersToStart.replace(
+                          '{count}',
+                          String(tournament.teams - tournament.members.length)
+                        )}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '4px 10px',
+                    background:
+                      tournament.members.length === tournament.teams
+                        ? 'rgba(34, 197, 94, 0.15)'
+                        : 'rgba(234, 179, 8, 0.15)',
+                    color: tournament.members.length === tournament.teams ? '#15803d' : '#a16207',
+                    fontFamily: 'var(--font-heading)',
+                    fontWeight: 800,
+                    fontSize: '12px',
+                    borderRadius: '4px'
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      background:
+                        tournament.members.length === tournament.teams ? '#22c55e' : '#eab308'
+                    }}
+                  />
+                  <span>
+                    {tournament.members.length} / {tournament.teams} Participantes
+                  </span>
+                </div>
+              </div>
+
+              {/* Admin Participant Slots Adjustment & Start Button */}
+              {isAdmin ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: isTablet ? 'row' : 'column',
+                    alignItems: isTablet ? 'center' : 'stretch',
+                    justifyContent: 'space-between',
+                    gap: '16px',
+                    paddingTop: '12px',
+                    borderTop: '1px solid var(--color-divider)'
+                  }}
+                >
+                  {/* Slot Stepper */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-neutral-800)' }}>
+                      {L.adjustSlots}:
+                    </span>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-icon"
+                        style={{ width: '36px', height: '36px', borderColor: 'var(--color-divider)' }}
+                        disabled={tournament.teams <= Math.max(2, tournament.members.length)}
+                        onClick={() => handleAdjustTeams(-1)}
+                        title={
+                          tournament.teams <= Math.max(2, tournament.members.length)
+                            ? L.slotsMinAlert
+                            : 'Reducir número de participantes'
+                        }
+                      >
+                        <Minus size={15} />
+                      </button>
+                      <div
+                        style={{
+                          minWidth: '42px',
+                          textAlign: 'center',
+                          fontFamily: 'var(--font-heading)',
+                          fontWeight: 900,
+                          fontSize: '17px'
+                        }}
+                      >
+                        {tournament.teams}
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-icon"
+                        style={{ width: '36px', height: '36px', borderColor: 'var(--color-divider)' }}
+                        disabled={tournament.teams >= 20}
+                        onClick={() => handleAdjustTeams(1)}
+                        title="Aumentar número de participantes"
+                      >
+                        <Plus size={15} />
+                      </button>
+                    </div>
+                    <span style={{ fontSize: '11px', color: 'var(--color-neutral-600)' }}>
+                      (Mín. {Math.max(2, tournament.members.length)})
+                    </span>
+                  </div>
+
+                  {/* Start Liga Button */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{
+                        gap: '8px',
+                        minHeight: '42px',
+                        paddingInline: '22px',
+                        fontWeight: 900,
+                        fontSize: '14px',
+                        letterSpacing: '.03em',
+                        opacity: tournament.members.length === tournament.teams ? 1 : 0.45,
+                        cursor:
+                          tournament.members.length === tournament.teams
+                            ? 'pointer'
+                            : 'not-allowed',
+                        boxShadow:
+                          tournament.members.length === tournament.teams
+                            ? '0 4px 12px rgba(0,0,0,0.12)'
+                            : 'none'
+                      }}
+                      disabled={tournament.members.length !== tournament.teams}
+                      onClick={handleStartLeague}
+                      title={
+                        tournament.members.length !== tournament.teams
+                          ? L.missingPlayersToStart.replace(
+                              '{count}',
+                              String(tournament.teams - tournament.members.length)
+                            )
+                          : L.readyToStartLeague
+                      }
+                    >
+                      <Play size={16} fill="currentColor" />
+                      <span>{L.startLeague}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: '13px', color: 'var(--color-neutral-700)', lineHeight: 1.45 }}>
+                  {tournament.members.length === tournament.teams
+                    ? 'Todos los cupos están cubiertos. Esperando a que el creador inicie la liga para comenzar los partidos.'
+                    : 'Esperando a que se completen los cupos para que el creador pueda iniciar la liga.'}
+                </div>
+              )}
+
+              {/* Secondary buttons for adding/inviting players */}
+              {tournament.members.length < tournament.teams && (
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', paddingTop: '4px' }}>
+                  {tournament.mode === 'offline' && canManage && (
+                    <button
+                      className="btn btn-secondary"
+                      style={{ gap: '8px', minHeight: '36px', paddingInline: '14px', fontSize: '12px', fontWeight: 700 }}
+                      onClick={() => setShowAddPlayerModal(true)}
+                    >
+                      <UserPlus size={15} />
+                      <span>Agregar jugador</span>
+                    </button>
+                  )}
+                  {tournament.mode !== 'offline' && canManage && (
+                    <button
+                      className="btn btn-secondary"
+                      style={{ gap: '8px', minHeight: '36px', paddingInline: '14px', fontSize: '12px', fontWeight: 700 }}
+                      onClick={() => setShowInviteModal(true)}
+                    >
+                      <Share2 size={15} />
+                      <span>Invitar Amigos</span>
+                    </button>
+                  )}
+                  {isTestUser && (
+                    <button
+                      className="btn btn-secondary"
+                      style={{ gap: '8px', minHeight: '36px', paddingInline: '14px', fontSize: '12px', fontWeight: 700 }}
+                      onClick={handleSimulate}
+                    >
+                      <Users size={15} />
+                      <span>{L.simulate}</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Waiting for players registration banner */}
-          {isWaiting && (
+          {!isLeague && isWaiting && (
             <div
               style={{
                 background: 'var(--color-surface)',
@@ -806,8 +1089,9 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
               userNick={userNick}
               onStartPlayoff={handleStartPlayoff}
               canManage={canManage}
+              onCloseTournament={handleCloseTournament}
               L={L}
-              onOpenAddPlayer={() => setShowAddPlayerModal(true)}
+              onOpenAddPlayer={tournament.mode === 'offline' ? () => setShowAddPlayerModal(true) : undefined}
             />
           )}
 
@@ -826,6 +1110,7 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
               onOpenScore={(m) => setEditingMatch(m)}
               canManage={canManage}
               L={L}
+              onShowToast={onShowToast}
             />
           )}
 
@@ -835,6 +1120,7 @@ export const TournamentDetailView: React.FC<TournamentDetailViewProps> = ({
               userNick={userNick}
               onOpenScore={(m) => setEditingMatch(m)}
               canManage={canManage}
+              onCloseTournament={handleCloseTournament}
               L={L}
               isTablet={isTablet}
             />

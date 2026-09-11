@@ -58,19 +58,25 @@ export const LoginView: React.FC<LoginViewProps> = ({
       }
     } catch (err: unknown) {
       console.error('Supabase login error:', err);
-      const msg = (err as Error)?.message || '';
+      const msg = ((err as Error)?.message || '').toLowerCase();
       if (
-        msg.toLowerCase().includes('invalid login credentials') ||
-        msg.toLowerCase().includes('invalid_credentials')
+        msg.includes('invalid login credentials') ||
+        msg.includes('invalid_credentials')
       ) {
         setInErr(
           lang === 'en'
             ? 'Invalid email or password. Please verify your credentials or register a new account.'
             : 'Correo o contraseña incorrectos. Verifica tus datos o regístrate.'
         );
+      } else if (msg.includes('failed to fetch') || msg.includes('network')) {
+        setInErr(
+          lang === 'en'
+            ? 'Server is unreachable (Failed to fetch). Click the "Test Account" button below to test locally.'
+            : 'No se pudo conectar con el servidor (Failed to fetch). Haz clic en "Cuenta de pruebas" abajo para entrar en local.'
+        );
       } else {
         setInErr(
-          msg ||
+          (err as Error)?.message ||
             (lang === 'en'
               ? 'Could not sign in. Please try again.'
               : 'No se pudo iniciar sesión. Por favor, intenta de nuevo.')

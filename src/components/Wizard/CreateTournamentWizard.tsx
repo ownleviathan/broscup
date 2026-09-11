@@ -45,7 +45,7 @@ export const CreateTournamentWizard: React.FC<CreateTournamentWizardProps> = ({
 
   const handleTypeSelect = (t: TournamentType) => {
     const presets = teamPresets(t);
-    const validTeams = presets.includes(Number(form.teams)) || t === 'liga' ? form.teams : presets[1] || presets[0];
+    const validTeams = t === 'copa' ? 4 : (presets.includes(Number(form.teams)) || t === 'liga' ? form.teams : presets[0]);
     setForm((prev) => ({ ...prev, type: t, teams: validTeams }));
   };
 
@@ -77,6 +77,7 @@ export const CreateTournamentWizard: React.FC<CreateTournamentWizardProps> = ({
       feeOn: form.feeOn,
       fee: form.fee.trim() || '0 €',
       closed: false,
+      started: form.type === 'liga' ? false : undefined,
       mode: form.mode || 'online',
       matches: [],
       rounds: [],
@@ -456,7 +457,7 @@ export const CreateTournamentWizard: React.FC<CreateTournamentWizardProps> = ({
                         color: isCur ? 'var(--color-bg)' : 'var(--color-text)',
                         border: '1px solid var(--color-divider)'
                       }}
-                      onClick={() => setForm({ ...form, teams: n })}
+                      onClick={() => setForm((prev) => ({ ...prev, teams: n }))}
                     >
                       {n}
                     </button>

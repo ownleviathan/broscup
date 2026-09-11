@@ -263,7 +263,16 @@ export const es = {
   semi: 'Semifinal',
   finalR: 'Final',
   eighth: 'Octavos',
-  winner: 'Ganador'
+  winner: 'Ganador',
+  startLeague: 'Start Liga',
+  startLeagueHelp: 'Solo se puede iniciar cuando todos los jugadores configurados estén inscritos.',
+  missingPlayersToStart: 'Faltan {count} participantes para iniciar la liga.',
+  readyToStartLeague: '¡Todos los jugadores inscritos! Listo para iniciar la liga.',
+  leagueNotStartedToast: 'La liga aún no ha comenzado. El creador debe iniciar la liga antes de registrar marcadores.',
+  leagueNotStartedBanner: 'La liga está en fase de preparación. Los marcadores se habilitarán cuando el creador inicie la liga.',
+  leagueStartedSuccess: '¡Liga iniciada! Ya pueden comenzar a registrar los marcadores.',
+  adjustSlots: 'Cupos de participantes',
+  slotsMinAlert: 'No puedes reducir los cupos por debajo de los jugadores ya inscritos.'
 };
 
 export const en: typeof es = {
@@ -530,7 +539,16 @@ export const en: typeof es = {
   semi: 'Semi-final',
   finalR: 'Final',
   eighth: 'Round of 16',
-  winner: 'Winner'
+  winner: 'Winner',
+  startLeague: 'Start League',
+  startLeagueHelp: 'Can only start once all configured players are enrolled.',
+  missingPlayersToStart: '{count} players needed to start the league.',
+  readyToStartLeague: 'All players enrolled! Ready to start the league.',
+  leagueNotStartedToast: 'The league has not started yet. The creator must start the league before entering scores.',
+  leagueNotStartedBanner: 'The league is preparing. Scores will be unlocked once the creator starts the league.',
+  leagueStartedSuccess: 'League started! You can now start recording scores.',
+  adjustSlots: 'Participant slots',
+  slotsMinAlert: 'You cannot reduce slots below the number of enrolled players.'
 };
 
 export type StringsDict = typeof es;

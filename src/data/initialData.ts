@@ -16,6 +16,7 @@ export function getInitialTournaments(): Tournament[] {
     feeOn: true,
     fee: '5 €',
     closed: false,
+    started: true,
     members: [
       { nick: '__ME__', role: 'admin', paid: true },
       { nick: 'nico_87', role: 'jugador', paid: true },

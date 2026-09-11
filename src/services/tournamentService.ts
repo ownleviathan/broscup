@@ -164,8 +164,10 @@ export function mapSingleTournament(
     feeOn: t.fee_on,
     fee: feeFormatted,
     closed: t.closed,
+    started: t.started !== undefined ? Boolean(t.started) : (t.type === 'liga' ? parsedMatches.length > 0 : true),
     mode: (t.mode as 'online' | 'offline') || 'online',
     champ: champNickname,
+    createdBy: t.created_by,
     members,
     matches: parsedMatches.filter((m) => !bracketMatches.some((bm) => bm.id === m.id)),
     rounds,
@@ -387,6 +389,12 @@ export const tournamentService = {
     s2b?: number,
     penaltyWinner?: 'a' | 'b' | null
   ) {
+    // If matchId is not a valid UUID (e.g. offline or local fallback like 'l0-0' or 'b0-0'), keep local
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(matchId);
+    if (!isUuid) {
+      return null;
+    }
+
     const { data, error } = await supabase.rpc('apply_match_score', {
       p_match_id: matchId,
       p_score_a: sa,

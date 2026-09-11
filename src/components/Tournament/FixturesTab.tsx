@@ -8,6 +8,7 @@ interface FixturesTabProps {
   onOpenScore: (match: Match) => void;
   canManage: boolean;
   L: StringsDict;
+  onShowToast?: (msg: string) => void;
 }
 
 export const FixturesTab: React.FC<FixturesTabProps> = ({
@@ -15,9 +16,11 @@ export const FixturesTab: React.FC<FixturesTabProps> = ({
   userNick,
   onOpenScore,
   canManage,
-  L
+  L,
+  onShowToast
 }) => {
   const [filterNick, setFilterNick] = useState<string>('');
+  const isLeagueNotStarted = tournament.type === 'liga' && !tournament.started;
 
   // Group matches by Jornada or Group
   const buckets = tournament.groups
@@ -104,6 +107,44 @@ export const FixturesTab: React.FC<FixturesTabProps> = ({
         </div>
       )}
 
+      {isLeagueNotStarted && (
+        <div
+          style={{
+            padding: '16px 20px',
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-divider)',
+            borderLeft: '4px solid var(--color-accent)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '6px'
+          }}
+        >
+          <div style={{ font: '800 13px var(--font-heading)', color: 'var(--color-accent)', textTransform: 'uppercase', letterSpacing: '.05em' }}>
+            {L.leagueNotStartedBanner}
+          </div>
+          <div style={{ fontSize: '12px', color: 'var(--color-neutral-700)' }}>
+            {tournament.members.length < tournament.teams
+              ? L.missingPlayersToStart.replace('{count}', String(tournament.teams - tournament.members.length))
+              : L.readyToStartLeague}
+          </div>
+        </div>
+      )}
+
+      {tournament.matches.length === 0 && (
+        <div
+          style={{
+            padding: '40px 20px',
+            textAlign: 'center',
+            color: 'var(--color-neutral-600)',
+            background: 'var(--color-surface)',
+            border: '1px dashed var(--color-divider)',
+            fontSize: '13px'
+          }}
+        >
+          {isLeagueNotStarted ? L.startLeagueHelp : 'No hay partidos programados aún.'}
+        </div>
+      )}
+
       {/* Matchday Groups */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
         {buckets.map((b) => {
@@ -164,7 +205,7 @@ export const FixturesTab: React.FC<FixturesTabProps> = ({
                     : 'vs';
 
                   const isParticipant = (Boolean(userNick) && (isMeA || isMeB));
-                  const canScore = canManage || isParticipant;
+                  const canScore = !isLeagueNotStarted && (canManage || isParticipant);
 
                   return (
                     <div
@@ -176,11 +217,24 @@ export const FixturesTab: React.FC<FixturesTabProps> = ({
                         padding: '12px 14px',
                         background: 'var(--color-surface)',
                         border: '1px solid var(--color-divider)',
-                        cursor: canScore ? 'pointer' : 'default',
-                        transition: 'background 0.15s ease'
+                        cursor: isLeagueNotStarted ? 'not-allowed' : canScore ? 'pointer' : 'default',
+                        transition: 'background 0.15s ease',
+                        opacity: isLeagueNotStarted ? 0.85 : 1
                       }}
-                      onClick={() => canScore && onOpenScore(m)}
-                      title={canScore ? 'Haz clic para cargar/editar marcador' : undefined}
+                      onClick={() => {
+                        if (isLeagueNotStarted) {
+                          onShowToast?.(L.leagueNotStartedToast);
+                          return;
+                        }
+                        if (canScore) onOpenScore(m);
+                      }}
+                      title={
+                        isLeagueNotStarted
+                          ? L.leagueNotStartedToast
+                          : canScore
+                          ? 'Haz clic para cargar/editar marcador'
+                          : undefined
+                      }
                     >
                       {/* Player A */}
                       <div

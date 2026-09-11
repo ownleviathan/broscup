@@ -272,6 +272,7 @@ export const App: React.FC = () => {
   };
 
   const handleCreatedTournament = async (newTour: Tournament, formState?: FormState) => {
+    let dbFailed = false;
     if (userId && formState) {
       try {
         const res = await tournamentService.createTournament(formState);
@@ -284,7 +285,7 @@ export const App: React.FC = () => {
         }
       } catch (err) {
         console.error('Create tournament in DB failed, using local fallback:', err);
-        showToast('Error al guardar en el servidor. Guardado localmente.');
+        dbFailed = true;
       }
     }
 
@@ -303,7 +304,13 @@ export const App: React.FC = () => {
     }));
     setOpenTourId(newTour.id);
     setScreen('tour');
-    showToast(newTour.mode === 'offline' ? 'Torneo presencial creado con éxito' : L.tCopied);
+    showToast(
+      dbFailed
+        ? 'Error al guardar en el servidor. Guardado solo localmente.'
+        : newTour.mode === 'offline'
+        ? 'Torneo presencial creado con éxito'
+        : L.tCopied
+    );
   };
 
   const handleJoinTournament = async (tournamentId: string, teamName?: string) => {

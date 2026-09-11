@@ -1,13 +1,14 @@
 import React from 'react';
 import { Tournament, StringsDict } from '../../types/tournament';
 import { standings } from '../../utils/tournamentEngine';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Trophy, CheckCircle } from 'lucide-react';
 
 interface StandingsTabProps {
   tournament: Tournament;
   userNick: string;
   onStartPlayoff: () => void;
   canManage: boolean;
+  onCloseTournament?: () => void;
   L: StringsDict;
   onOpenAddPlayer?: () => void;
 }
@@ -17,6 +18,7 @@ export const StandingsTab: React.FC<StandingsTabProps> = ({
   userNick,
   onStartPlayoff,
   canManage,
+  onCloseTournament,
   L,
   onOpenAddPlayer
 }) => {
@@ -55,6 +57,14 @@ export const StandingsTab: React.FC<StandingsTabProps> = ({
   }
 
   const isWaiting = tournament.members.length < tournament.teams && !tournament.closed;
+
+  const isLeagueFinishedNoPlayoffs =
+    isLiga &&
+    tournament.finals === 'none' &&
+    tournament.matches.length > 0 &&
+    tournament.matches.filter((m) => m.a && m.b && !m.played).length === 0;
+
+  const championNick = isLeagueFinishedNoPlayoffs ? rows[0]?.nick : '';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -147,6 +157,80 @@ export const StandingsTab: React.FC<StandingsTabProps> = ({
               onClick={onStartPlayoff}
             >
               {L.startPlayoff} →
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Champion Banner for League without playoffs */}
+      {isLeagueFinishedNoPlayoffs && championNick && (
+        <div
+          style={{
+            background: 'var(--color-accent)',
+            color: '#fff',
+            padding: '20px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '16px',
+            borderLeft: '6px solid var(--color-accent-800)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.08)'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+            <div
+              style={{
+                width: '54px',
+                height: '54px',
+                background: 'rgba(255,255,255,0.15)',
+                display: 'grid',
+                placeItems: 'center',
+                flex: 'none'
+              }}
+            >
+              <Trophy size={32} color="#fff" />
+            </div>
+            <div>
+              <div
+                style={{
+                  fontSize: '11px',
+                  letterSpacing: '.18em',
+                  textTransform: 'uppercase',
+                  opacity: 0.85,
+                  fontWeight: 700
+                }}
+              >
+                {L.champion}
+              </div>
+              <div style={{ font: '800 32px/1.1 var(--font-heading)', marginTop: '2px' }}>
+                {championNick}
+              </div>
+            </div>
+          </div>
+
+          {canManage && !tournament.closed && onCloseTournament && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{
+                background: '#fff',
+                color: 'var(--color-accent)',
+                fontWeight: 800,
+                fontSize: '13px',
+                padding: '10px 20px',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                flexShrink: 0
+              }}
+              onClick={onCloseTournament}
+            >
+              <CheckCircle size={16} />
+              <span>Cerrar Torneo</span>
             </button>
           )}
         </div>
